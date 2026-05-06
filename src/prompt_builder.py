@@ -14,16 +14,16 @@ from src.diary import WeekSummary
 
 
 # The user's signature style — kept identical run-to-run so the aesthetic is stable.
+# CLIP truncates at 77 tokens; the *front* of the prompt has the most influence.
+# So this block is short and punchy — no redundant adjectives.
 STYLE_TAGS = (
-    "crude childlike doodle, scribbled with a mouse in old MS Paint, "
-    "white background, lo-fi, pixelated, low-resolution, jagged lines, "
-    "uneven shaky strokes, recognizable but distorted, awkward proportions, "
-    "deliberately badly drawn, jpeg artifacts, naive art, postcard layout"
+    "ugly MS Paint doodle, white paper, black ink only, pixelated low-res, "
+    "child scribble, jagged shaky lines, naive crude drawing"
 )
 
 NEGATIVE_PROMPT = (
-    "professional, polished, detailed, photorealistic, smooth, anti-aliased, "
-    "high quality, beautiful, masterpiece, 4k, hd, sharp focus"
+    "color, photorealistic, polished, smooth, hd, high quality, sharp, beautiful, "
+    "professional artwork, anti-aliased, gradient, realistic, painting"
 )
 
 
@@ -78,10 +78,10 @@ def build(summary: WeekSummary) -> BuiltPrompt:
         if len(subjects) >= 6:
             break
 
+    # Style FIRST — CLIP truncates at 77 tokens, and the front of the prompt
+    # carries the most weight. Subjects come after so they can be trimmed.
     subject_block = ", ".join(subjects)
-    title_block = f"a one-week diary postcard, {subject_block}"
-
-    positive = f"{title_block}, {STYLE_TAGS}"
+    positive = f"{STYLE_TAGS}, weekly diary postcard with {subject_block}"
     return BuiltPrompt(
         positive=positive,
         negative=NEGATIVE_PROMPT,

@@ -34,6 +34,8 @@ img2img = generator.generate_img2img(
     prompt=built.positive,
     negative_prompt=built.negative,
     init_image=collage,
+    steps=4,
+    strength=0.99,
     seed=42,
 )
 img2img.save(SAMPLES / "sd_img2img.png")
@@ -44,6 +46,7 @@ t0 = time.time()
 txt2img = generator.generate_txt2img(
     prompt=built.positive,
     negative_prompt=built.negative,
+    steps=4,
     seed=42,
 )
 txt2img.save(SAMPLES / "sd_txt2img.png")
