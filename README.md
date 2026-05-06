@@ -12,12 +12,29 @@ The aesthetic target (per the user's spec, in Korean):
 
 That intent is encoded as SD-friendly tags in [src/prompt_builder.py](src/prompt_builder.py).
 
+## Result so far (CPU, SD-Turbo, seed=42)
+
+| step | image |
+|---|---|
+| **Base collage** — rule-rendered from the diary, text-free pictograms (sun + cups + place-icon grid). Acts as the img2img seed. | ![base](samples/base_collage.png) |
+| **img2img** (32.5 s) — collage redrawn in the bad-doodle style. Layout preserved, style fully transformed. The recommended path. | ![img2img](samples/sd_img2img.png) |
+| **txt2img** (24.3 s) — prompt-only generation for comparison. Doodle vibe but loses the "white paper" intent and adds color. | ![txt2img](samples/sd_txt2img.png) |
+
+**Verdict for the mobile port**: img2img on a Skia-rendered pictographic
+collage is the path. Pure txt2img is cheaper but loses too much aesthetic
+control.
+
 ## What this prototype answers
 
 1. Can a small Stable Diffusion model produce the "intentionally bad doodle"
-   aesthetic from a structured weekly summary?
-2. Does img2img on a rule-rendered collage beat pure txt2img?
-3. What latency / model size do we need to budget for the mobile port?
+   aesthetic from a structured weekly summary? — **Yes** (see samples above).
+2. Does img2img on a rule-rendered collage beat pure txt2img? — **Yes**, by
+   a clear margin once `strength >= 0.95` so the seed is *layout guide*, not
+   *content to preserve*.
+3. What latency / model size do we need to budget for the mobile port? —
+   SD-Turbo at 4 steps × 512² produces a frame in ~30 s on a Radeon Pro 580X
+   CPU path. On an iPhone 14 Neural Engine the same workload is ~3-6 s; on a
+   Snapdragon 8 Gen 2 with the MediaPipe ImageGenerator task, ~5-10 s.
 
 The full mobile architecture lives in [docs/mobile-architecture.md](docs/mobile-architecture.md).
 
@@ -40,15 +57,25 @@ local-ai-rnd/
 Windows (PowerShell), Python 3.9+:
 
 ```powershell
-# 1. (already done by the bootstrap) create venv + install deps
+# 1. (one-time) create venv + install deps
 py -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
 
-# 2. launch the UI
+# 2. launch the UI locally
 .\.venv\Scripts\python.exe -m src.app
+
+# 2b. or expose a public *.gradio.live link (anyone with the URL can use it,
+#     so don't leave it running unattended; link expires in ~72h)
+.\.venv\Scripts\python.exe -m src.app --share
 ```
 
 Then open http://127.0.0.1:7860 — the workflow is Summarize → img2img.
+
+To regenerate the committed reference images in `samples/`:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\refresh_samples.py
+```
 
 ### First run
 
@@ -80,16 +107,30 @@ SD-Turbo at 512x512.
 
 ## How the prompt is built
 
-`prompt_builder.build()` lifts subjects from the summary and concatenates
-them with a fixed style block:
+`prompt_builder.build()` puts the **style block first** (CLIP truncates at
+77 tokens, and the front of the prompt has the most influence) and concatenates
+subjects derived from the diary after it:
 
+- style → `ugly MS Paint doodle, white paper, black ink only, pixelated low-res, child scribble, jagged shaky lines, naive crude drawing`
 - water_event_count → "N mismatched water cups in a row"
 - dominant_weather → "smiling sun" / "lumpy clouds" / etc.
 - place categories → "wobbly coffee cup", "lopsided trees", ...
-- style → "crude childlike doodle, MS Paint, lo-fi, pixelated, ..."
 
-Tweak the dictionaries in `prompt_builder.py` to taste. Style tags are the
-single biggest knob for "how bad" the result looks.
+Tweak the dictionaries in [src/prompt_builder.py](src/prompt_builder.py) to taste.
+
+### Lessons from the iteration
+
+The committed git history shows two passes (compare commits `0922e01` and `ec7dc20`):
+
+1. **Front-load style tags** — putting them at the prompt tail meant CLIP
+   silently truncated *exactly the style tokens that mattered most*, so the
+   first run kept full color and ignored "white background".
+2. **Keep text off the img2img seed** — early collage had English labels;
+   SD reinterpreted them as garbled fake text in the output. The current
+   collage is purely pictographic.
+3. **Use `strength >= 0.95` on SD-Turbo img2img** — anything lower leaves
+   the seed too visible. With low step counts, `strength * steps` is the
+   real "denoising budget."
 
 ## What is *not* in the prototype
 
