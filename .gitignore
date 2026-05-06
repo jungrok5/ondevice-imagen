@@ -1,0 +1,21 @@
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
+
+# Generated outputs and model caches (local only — committed reference
+# images live in samples/ instead)
+outputs/*.png
+outputs/*.jpg
+install.log
+.cache/
+models/
+hf_cache/
+
+# Editor / OS / tooling
+.idea/
+.vscode/
+.claude/
+Thumbs.db

@@ -1,0 +1,95 @@
+{
+  "user_id": "demo",
+  "week_start": "2026-04-27",
+  "week_end": "2026-05-03",
+  "entries": [
+    {
+      "date": "2026-04-27",
+      "weather": { "summary": "sunny", "temp_c": 22, "icon": "sun" },
+      "water_intake": [
+        { "time": "08:12", "ml": 200 },
+        { "time": "11:40", "ml": 250 },
+        { "time": "14:25", "ml": 300 },
+        { "time": "18:50", "ml": 200 }
+      ],
+      "places": [
+        { "name": "Hannam Cafe", "category": "cafe", "lat": 37.535, "lng": 127.011 },
+        { "name": "Han River Park", "category": "park", "lat": 37.527, "lng": 127.008 }
+      ]
+    },
+    {
+      "date": "2026-04-28",
+      "weather": { "summary": "cloudy", "temp_c": 18, "icon": "cloud" },
+      "water_intake": [
+        { "time": "09:30", "ml": 250 },
+        { "time": "13:10", "ml": 200 }
+      ],
+      "places": [
+        { "name": "Office", "category": "work", "lat": 37.501, "lng": 127.039 }
+      ]
+    },
+    {
+      "date": "2026-04-29",
+      "weather": { "summary": "rainy", "temp_c": 15, "icon": "rain" },
+      "water_intake": [
+        { "time": "08:00", "ml": 200 },
+        { "time": "12:00", "ml": 350 },
+        { "time": "16:20", "ml": 250 },
+        { "time": "21:00", "ml": 200 }
+      ],
+      "places": [
+        { "name": "Kyobo Bookstore", "category": "bookstore", "lat": 37.570, "lng": 126.978 },
+        { "name": "Ramen Shop", "category": "restaurant", "lat": 37.562, "lng": 126.985 }
+      ]
+    },
+    {
+      "date": "2026-04-30",
+      "weather": { "summary": "sunny", "temp_c": 24, "icon": "sun" },
+      "water_intake": [
+        { "time": "07:45", "ml": 300 },
+        { "time": "10:30", "ml": 200 },
+        { "time": "15:00", "ml": 300 }
+      ],
+      "places": [
+        { "name": "Namsan Tower", "category": "landmark", "lat": 37.551, "lng": 126.988 }
+      ]
+    },
+    {
+      "date": "2026-05-01",
+      "weather": { "summary": "windy", "temp_c": 19, "icon": "wind" },
+      "water_intake": [
+        { "time": "09:00", "ml": 250 },
+        { "time": "13:30", "ml": 250 },
+        { "time": "17:45", "ml": 200 }
+      ],
+      "places": [
+        { "name": "Seongsu Cafe Street", "category": "cafe", "lat": 37.544, "lng": 127.056 }
+      ]
+    },
+    {
+      "date": "2026-05-02",
+      "weather": { "summary": "sunny", "temp_c": 26, "icon": "sun" },
+      "water_intake": [
+        { "time": "08:30", "ml": 300 },
+        { "time": "12:10", "ml": 250 },
+        { "time": "14:30", "ml": 200 },
+        { "time": "19:00", "ml": 300 }
+      ],
+      "places": [
+        { "name": "Olympic Park", "category": "park", "lat": 37.521, "lng": 127.121 },
+        { "name": "Lotte Mart", "category": "market", "lat": 37.512, "lng": 127.103 }
+      ]
+    },
+    {
+      "date": "2026-05-03",
+      "weather": { "summary": "cloudy", "temp_c": 20, "icon": "cloud" },
+      "water_intake": [
+        { "time": "10:00", "ml": 200 },
+        { "time": "14:00", "ml": 250 }
+      ],
+      "places": [
+        { "name": "Home Cafe", "category": "home", "lat": 37.500, "lng": 127.030 }
+      ]
+    }
+  ]
+}
