@@ -14,10 +14,7 @@ import time
 from pathlib import Path
 
 import torch
-from diffusers import (
-    StableDiffusionPipeline,
-    DPMSolverMultistepScheduler,
-)
+from diffusers import StableDiffusionPipeline, EulerAncestralDiscreteScheduler
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -45,13 +42,16 @@ RUNS = [
     },
     {
         "name": "anime",
-        "model": "Linaqruf/anything-v3-better-vae",
+        "model": "dreamlike-art/dreamlike-anime-1.0",
         "out": SAMPLES / "quality_anime.png",
     },
 ]
 
 
 def run(run_cfg: dict) -> None:
+    if run_cfg["out"].exists():
+        print(f"\n[quality] === {run_cfg['name']}: skipped (exists at {run_cfg['out']}) ===")
+        return
     print(f"\n[quality] === {run_cfg['name']}: {run_cfg['model']} ===")
     t_load = time.time()
     pipe = StableDiffusionPipeline.from_pretrained(
@@ -60,7 +60,9 @@ def run(run_cfg: dict) -> None:
         safety_checker=None,
         requires_safety_checker=False,
     )
-    pipe.scheduler = DPMSolverMultistepScheduler.from_config(pipe.scheduler.config)
+    # Euler-a is a safe default that matches what people usually pick on civitai
+    # for these checkpoints. Avoids per-checkpoint scheduler-config quirks.
+    pipe.scheduler = EulerAncestralDiscreteScheduler.from_config(pipe.scheduler.config)
     pipe = pipe.to("cpu")
     print(f"[quality] loaded in {time.time() - t_load:.1f}s")
 
