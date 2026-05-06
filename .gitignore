@@ -10,6 +10,7 @@ __pycache__/
 outputs/*.png
 outputs/*.jpg
 install.log
+samples/refresh.log
 .cache/
 models/
 hf_cache/
