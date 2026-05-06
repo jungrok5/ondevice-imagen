@@ -24,6 +24,21 @@ That intent is encoded as SD-friendly tags in [src/prompt_builder.py](src/prompt
 collage is the path. Pure txt2img is cheaper but loses too much aesthetic
 control.
 
+### Aside: what this PC can do at the *quality* end of the dial
+
+To bracket the hardware envelope, [scripts/quality_demo.py](scripts/quality_demo.py)
+runs two SD 1.5 fine-tunes at full 30-step Euler-a, same prompt + seed:
+
+| model | runtime (CPU) | output |
+|---|---|---|
+| `Lykon/dreamshaper-8` (realistic) | 246 s (~8 s/step) | ![realistic](samples/quality_realistic.png) |
+| `dreamlike-art/dreamlike-anime-1.0` (anime) | 249 s (~8 s/step) | ![anime](samples/quality_anime.png) |
+
+So the PC's ceiling is "magazine-grade SD 1.5 in ~4 min/image" on plain CPU
+torch. With `torch-directml` on the Radeon, expect ~30-60 s. A modern phone
+NPU does the same workload in ~3-10 s — which is why on-device generation
+is suddenly realistic in 2026.
+
 ## What this prototype answers
 
 1. Can a small Stable Diffusion model produce the "intentionally bad doodle"
