@@ -11,6 +11,7 @@ outputs/*.png
 outputs/*.jpg
 install.log
 samples/refresh.log
+samples/quality.log
 .cache/
 models/
 hf_cache/
