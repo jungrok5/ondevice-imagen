@@ -143,6 +143,58 @@ UX flow: user opens the app on Sunday, finds last week's postcard already
 generated. No spinner, no wait — the work happened while the phone was
 charging on the nightstand.
 
+## The "no-conversion" path (recommended starting plan)
+
+Before considering custom conversion / LoRA-merge work, check if the
+checkpoint we want already ships pre-converted. For most popular SD 1.5
+fine-tunes the answer is yes:
+
+- **iOS**: the `coreml-community` org on Hugging Face hosts **~145
+  pre-converted `.mlpackage` artifacts**. Notably, the `Dreamshaper-8`
+  checkpoint we used for the watercolor result is already there as
+  `coreml-community/coreml-DreamShaper-v8_cn`. Drop into the app,
+  load with Apple's `StableDiffusionPipeline` Swift library, done — no
+  conversion code, no Xcode toolchain pain on our side.
+- **Android**: there is no equivalent curated bundle of pre-converted
+  community fine-tunes. The two viable paths are:
+  - `optimum-cli export onnx --model Lykon/dreamshaper-8 ...` — one
+    command, ~10 min, produces an ONNX bundle that ONNX Runtime Mobile
+    runs directly on both NNAPI and Qualcomm QNN.
+  - MediaPipe `ImageGenerator` with whatever Google ships — fast and
+    well-supported, but limited to their bundled LCM-SD1.5; the
+    watercolor aesthetic may lose some fidelity.
+
+### LoRA is also not strictly required
+
+The watercolor sample committed to `samples/style_watercolor_diary.png`
+was produced with **only the prompt** — no LoRA. This matters for the
+mobile plan because it means style is defined in a string, not a binary
+adapter, so the entire "LoRA hot-swap" problem disappears for the
+default aesthetic. Style variants (riso, crayon, ghibli, minhwa) that
+the base model does *not* know are the ones that need LoRAs and the
+per-style merged-checkpoint shipping pattern. That is Phase 2 work.
+
+### Concrete recommended stack
+
+```
+Aesthetic        : watercolor diary (prompt-only)
+Base checkpoint  : Lykon/dreamshaper-8
+iOS              : coreml-community/coreml-DreamShaper-v8_cn
+                   + apple/ml-stable-diffusion Swift package
+                   (~700MB-1GB on disk after 6-bit palettization)
+Android          : ONNX export of the same checkpoint via optimum-cli
+                   + ONNX Runtime Mobile (NNAPI/QNN delegates)
+                   (~1.5GB on disk)
+Prompt           : src/prompt_builder.py output, fed straight to either
+                   pipeline — no per-platform divergence
+Step count       : 4 (LCM/Turbo) for foreground; 30 (Euler-a) for
+                   background-job mode while charging + idle
+```
+
+This stack keeps "specific checkpoint" and "specific style" out of the
+conversion / engineering loop until we have a reason to add a second
+aesthetic.
+
 ## What is verified vs. assumed (as of this commit)
 
 The PC prototype proves the *aesthetic + pipeline shape*. It does NOT prove
