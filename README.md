@@ -72,6 +72,45 @@ weak on medium-specific *physicality*. Anything where the texture of the
 medium is the point (riso, crayon, linocut) needs a dedicated LoRA. Looks
 like watercolor or painterly illustration come essentially for free.
 
+## Viral-aesthetic search
+
+The "하찮은 프롬프트" trend went global in May 2025 because it stacked
+five things at once: a meta-instruction (be deliberately inept),
+recognizable-but-wrong output, earnest amateur energy, one-prompt
+reusability, and a strong cultural rhyme (MS Paint).
+
+[scripts/style_viral_search.py](scripts/style_viral_search.py) tries
+five candidate aesthetics that share that DNA but explore different
+cultural rhymes — to see whether SD 1.5 can deliver the same kind of
+"recognizable + earnest + slightly wrong" charge through a single
+short prompt. All five run on `dreamlike-art/dreamlike-diffusion-1.0`
+(the most painterly fine-tune in the cross-platform table), same
+subject + seed, 30 steps Euler-a (~4 min/image on CPU).
+
+Same subject across all five: *"a young woman holding a coffee cup at
+a cafe window, plants beside her"*.
+
+| preset | output | reading |
+|---|---|---|
+| `renaissance_oil` | ![ren](samples/viral_renaissance_oil.png) | technically beautiful but the "elevate the mundane in oil paint" trope is already saturated. ★★★★ |
+| `hotel_art_70s` | ![hotel](samples/viral_hotel_art_70s.png) | reads as *actual* 1970s mass-produced motel kitsch — wrong proportions, ugly palette, sad-but-charming. **★★★★★** |
+| `embroidered_sampler` | ![sampler](samples/viral_embroidered_sampler.png) | cross-stitch face + scene, distinctive medium-as-message. Pixelation reads as "intentionally limited," warm grandma-craft DNA. **★★★★★** |
+| `friends_mom_portrait` | ![mom](samples/viral_friends_mom_portrait.png) | closest cousin to 하찮은 프롬프트: same amateur-sincerity DNA in a *different cultural rhyme* (a 2003 colored-pencil sketch by a sincere suburban mom). **★★★★★** |
+| `half_remembered_film` | ![film](samples/viral_half_remembered_film.png) | beautiful but aspirational — looks like a magazine ad, not a meme. Missing "wrongness." ★★★ |
+
+**Reading the result space.** Three of the five actually carry the DNA:
+`hotel_art_70s` and `embroidered_sampler` for their distinctive media,
+`friends_mom_portrait` for being the most novel formulation — same
+earnest-amateur energy as the original trend but in a different
+medium and cultural reference. `renaissance_oil` lands but is already
+heavily memed; `half_remembered_film` is too clean — no wrongness, no
+hook.
+
+The single most interesting candidate is `friends_mom_portrait`: the
+prompt itself ("draw it as if your friend's mom drew you in 2003") is
+specific, evocative, copy-pasteable, and globally legible — the four
+properties that made the original trend portable across languages.
+
 ## Cross-platform availability: which models ship without our own conversion
 
 The interesting practical question for on-device deployment is: which
