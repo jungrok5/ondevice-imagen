@@ -59,9 +59,11 @@ class BuiltPrompt:
 def build(summary: WeekSummary) -> BuiltPrompt:
     subjects: list[str] = []
 
-    # Water as the protagonist — count drives how many cups
-    cups = max(1, min(summary.water_event_count, 8))
-    subjects.append(f"{cups} mismatched water cups arranged in a row")
+    # Water as the protagonist — count drives how many cups. Cap at 24
+    # so the prompt stays under CLIP's 77-token budget but lets weekly
+    # variation actually show in the output instead of always saturating.
+    cups = max(1, min(summary.water_event_count, 24))
+    subjects.append(f"{cups} mismatched water cups arranged in two rows")
 
     # Weather → mood element
     weather_tok = WEATHER_TOKENS.get(summary.dominant_weather)

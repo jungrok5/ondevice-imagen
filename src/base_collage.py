@@ -160,20 +160,32 @@ def render(summary: WeekSummary, size: int = 512) -> Image.Image:
     # Top-right: weather icon (large)
     _draw_weather(draw, summary.dominant_weather, cx=size - 90, cy=90, r=46)
 
-    # Top row: water cups (count = water_event_count, capped at 8)
-    cups = max(1, min(summary.water_event_count, 8))
+    # Water cups: cap at 16 so they fit in two rows of 8 inside 512 width.
+    # The prompt builder caps at 24, so the count visible here is at most 16
+    # while the prompt may say up to 24 — fine, both are upper bounds and
+    # the SD model approximates either way.
+    cups = max(1, min(summary.water_event_count, 16))
     cup_w = 48
-    cup_h = 60
-    row_y = 200
-    total_w = cups * cup_w + (cups - 1) * 12
-    start_x = (size - total_w) // 2
-    for i in range(cups):
-        x = start_x + i * (cup_w + 12)
-        _draw_cup(draw, x, row_y, cup_w, cup_h)
+    cup_h = 56
+    cups_per_row = 8
+    rows_needed = (cups + cups_per_row - 1) // cups_per_row
+    row_y0 = 190
+    for idx in range(cups):
+        r = idx // cups_per_row
+        c = idx % cups_per_row
+        cups_in_this_row = min(cups - r * cups_per_row, cups_per_row)
+        total_w = cups_in_this_row * cup_w + (cups_in_this_row - 1) * 12
+        start_x = (size - total_w) // 2
+        x = start_x + c * (cup_w + 12)
+        y = row_y0 + r * (cup_h + 14)
+        _draw_cup(draw, x, y, cup_w, cup_h)
 
-    # Bottom area: 2x4 grid of place icons
+    # When two rows of cups push the place icons down, also push the grid
+    grid_y_offset = (rows_needed - 1) * (cup_h + 14)
+
+    # Bottom area: 2x4 grid of place icons (shifted down if cup rows used 2)
     cats = list(summary.place_categories.keys())[:8]
-    grid_y = 320
+    grid_y = 320 + grid_y_offset
     cell_w, cell_h = 100, 80
     for idx, cat in enumerate(cats):
         col = idx % 4
