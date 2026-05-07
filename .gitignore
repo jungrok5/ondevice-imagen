@@ -20,6 +20,9 @@ samples/drill.log
 samples/random.log
 samples/random_t2i.log
 samples/variety.log
+samples/v8.log
+samples/v9.log
+models/lora/
 .cache/
 models/
 hf_cache/
