@@ -28,3 +28,6 @@ hf_cache/
 .vscode/
 .claude/
 Thumbs.db
+samples/reference/heraldcorp.html
+samples/reference/dcbest.html
+samples/reference/ref_wikitree.webp
