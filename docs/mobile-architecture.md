@@ -143,6 +143,49 @@ UX flow: user opens the app on Sunday, finds last week's postcard already
 generated. No spinner, no wait — the work happened while the phone was
 charging on the nightstand.
 
+## What is verified vs. assumed (as of this commit)
+
+The PC prototype proves the *aesthetic + pipeline shape*. It does NOT prove
+that any specific checkpoint we are using will actually run on iOS or
+Android — that is a downstream engineering task. Be precise:
+
+| Tested on this PC | Mobile-portable as-is? |
+|---|---|
+| `stabilityai/sd-turbo` (doodle path) | ✅ Both Apple ml-stable-diffusion and MediaPipe ImageGenerator ship matching SD-Turbo / LCM-distilled SD 1.5 templates. |
+| `Lykon/dreamshaper-8` (watercolor, realistic) | ⚠️ Architecture-compatible but requires **per-checkpoint conversion**: Core ML `.mlpackage` for iOS (~700 MB at 6-bit), ONNX export for Android (MediaPipe does not accept arbitrary fine-tunes — must drop down to ONNX Runtime Mobile). |
+| `dreamlike-art/dreamlike-anime-1.0` (anime) | ⚠️ Same as above — every fine-tune is a separate conversion + ship/download artifact. |
+| LoRA-stacked styles (riso, crayon, ink wash) | ❌ Neither Core ML nor MediaPipe supports LoRA hot-swap. Each LoRA must be **merged into the base checkpoint** before conversion, producing one shipped model per style. |
+| 30-step Euler-a inference | △ Architecture-fine, but on mobile you usually want LCM/Turbo (4 steps) for power. Background-job mode (charging + idle) makes 30 steps acceptable too — see Background scheduling above. |
+
+### Implications for app size
+
+Each style = one converted model artifact:
+- Quantized SD 1.5 (Core ML 6-bit): ~700 MB - 1 GB
+- ONNX-exported SD 1.5: ~1.5-2 GB
+
+A "5 styles bundled" app would be 4-10 GB — unrealistic. Realistic plan:
+
+1. **Bundle one default style** (the user's primary aesthetic) inside the
+   app binary.
+2. **Other styles are optional downloads**, fetched on first selection from
+   a CDN. Users pick their look once, download once, regenerate weekly
+   forever after.
+
+### What is NOT validated yet
+
+- Actually running any of these checkpoints on a real iPhone or Android
+  phone. The Core ML / MediaPipe paths are documented and well-trodden,
+  but our specific checkpoints have not been exported, profiled, or
+  benchmarked on device.
+- LoRA-merge → checkpoint → convert pipelines (paper-tested only).
+- Whether the watercolor aesthetic survives the 6-bit Core ML
+  quantization. It probably does (the look is forgiving), but should be
+  verified before locking the visual direction.
+
+These are the natural Phase 2 tasks: pick the visual direction here on
+the PC, then prove the iOS path end-to-end with the chosen checkpoint
+before doing Android.
+
 ## Open questions to validate via the PC prototype
 
 1. Does the prompt actually produce the desired aesthetic, or do we need a
