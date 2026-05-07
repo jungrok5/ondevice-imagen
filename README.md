@@ -10,7 +10,53 @@ that lets us try a checkpoint, look at the result, and decide whether it
 is worth carrying to mobile. The committed `samples/` images and the
 notes below are the actual research output.
 
-## 하찮은 프롬프트 — user-tested round (latest)
+## v10 — actual product flow (current best)
+
+The product spec, after iteration: feed diary text (time / weather /
+place) and get back an **unexpected scene drawn in the 하찮은
+register**. No photo input, no image conversion. Every call should
+surprise — same data twice should give different outputs.
+
+```
+diary text
+  -> prompt_builder (fresh phrasing per call)
+  -> worstimever LoRA trigger
+  -> SDXL-Turbo txt2img (LoRA fused at scale 0.9)
+  -> result
+```
+
+| seed | week shape | result |
+|---|---|---|
+| 11 — rainy week | weather protagonist | ![](samples/v10_w11_v1.png) |
+| 22 — time-morning | time protagonist | ![](samples/v10_w22_v1.png) |
+| 33 — place-cafe | place protagonist | ![](samples/v10_w33_v1.png) |
+| 44 — 36 sips of water | cups protagonist | ![](samples/v10_w44_v1.png) |
+| 22 again, fresh RNG | same data → different scene | ![](samples/v10_w22_v2.png) |
+
+What works:
+- ✅ **하찮은 doodle register** (worstimever LoRA delivers — flat colour, thick black outlines, deliberately childlike)
+- ✅ **Unexpected scene choices** ("rainy" → yellow umbrellas in alley; "many cups" → cups scattered between houses)
+- ✅ **Same data → different image** (`w22_v1` vs `w22_v2`)
+- ✅ **No photo conversion needed** — diary text is the only input
+
+Driver: [scripts/match_user_ref_v10.py](scripts/match_user_ref_v10.py).
+
+### Mobile envelope (with the SDXL choice)
+
+User dropped iPhone 12 support (A14) to get the SDXL LoRA ecosystem.
+Target hardware: **iPhone 14 Pro+ (A16) and Snapdragon 8 Gen 2+
+Android phones**.
+
+- SDXL-Turbo Core ML: `apple/coreml-stable-diffusion-xl-base` (~3 GB
+  at 6-bit), runs in ~3-10 s per image on A16 ANE
+- LoRA hot-swap is not supported on Core ML / MediaPipe → each
+  shipped style is one pre-merged checkpoint, ~3 GB per style
+- worstimever weights merged into SDXL-Turbo at `lora_scale=0.9`
+  before conversion = ship one .mlpackage per visual style
+
+## Earlier rounds (kept for the journey)
+
+### 하찮은 프롬프트 — user-tested rounds (v4–v9)
 
 User uploaded an actual ChatGPT 하찮은 프롬프트 input/output pair via
 GitHub. The pipeline now matches the trend's defining property —
