@@ -11,6 +11,7 @@ outputs/*.png
 outputs/*.jpg
 install.log
 install_rembg.log
+sdxl_dl.log
 samples/refresh.log
 samples/quality.log
 samples/style.log
