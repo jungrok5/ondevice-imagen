@@ -119,8 +119,38 @@ v7 j3 hits the user-preferred aesthetic register: recognisable
 subject + thick black outlines + colourful flat fill + mouse-tremor
 wobble. Setting drifted from cafe interior to city street because
 SD-Turbo at strength 0.75 redraws the BG context too freely; that's a
-prompt / strength tuning step, or a path for the LoRA / prompt-tuning
-round next.
+prompt / strength tuning step.
+
+### v8 — prompt-wording sweep on the v7 pipeline
+
+Five wording variants on the same SD-Turbo img2img(0.75) +
+cv2.stylization + ±3 px jitter pipeline:
+
+| variant | image | reads |
+|---|---|---|
+| `p1` "5-year-old + computer mouse" | ![](samples/v8_p1_child_mouse_final.png) | small subject, dark cramped BG |
+| `p2` "wrong hand sketch" | ![](samples/v8_p2_wrong_hand_final.png) | SD literally drew a *rodent* — "mouse" word triggered the animal cluster |
+| `p3` "MS Paint 1995 amateur" | ![](samples/v8_p3_ms_paint_1995_final.png) | same rodent confusion |
+| **`p4` "kindergarten crayon"** | ![](samples/v8_p4_kindergarten_crayon_final.png) | **strongest naive-child register**: stick-figure, simple shapes, scribble BG, bright kid-art colours. Identity is gone, the style is unmistakable. |
+| `p5` "intentionally bad sketch" | ![](samples/v8_p5_intentionally_bad_final.png) | recognisable subject + colourful cartoon, same family as v5_s85 |
+
+Two findings:
+
+1. **Two valid sub-aesthetics for "the trend"**: (a) the *child-art
+   naive* style (p4) and (b) the *colourful cartoon with thick
+   outlines* style (p5 / v5_s85). The first nails "5살 어린이가
+   그렸다" but loses identity; the second preserves identity but is
+   more refined-cartoon than wobbly-amateur.
+2. **Avoid the literal word `mouse` in SD prompts.** SD-Turbo
+   interprets it as the rodent and outputs an actual mouse character.
+   Use `stylus`, `input device`, or just `scribbled with shaky hand`
+   instead.
+
+(Full grid: [match_v8_grid.md](samples/match_v8_grid.md).)
+
+Next round: LoRA experiments — see if a "child drawing" or "MS Paint"
+LoRA can deliver p4's naive register *while* preserving subject
+identity from the photo, the way p5 does for the cartoon style.
 
 ### Mobile note
 
