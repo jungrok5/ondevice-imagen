@@ -23,6 +23,8 @@ samples/random_t2i.log
 samples/variety.log
 samples/v8.log
 samples/v9.log
+samples/v10.log
+samples/event.log
 models/lora/
 .cache/
 models/
