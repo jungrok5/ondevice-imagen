@@ -49,32 +49,60 @@ PLACES = [
 WEATHERS = ["sunny", "cloudy", "rainy", "windy", "snowy"]
 
 
+# Each seed deliberately produces a different week 'shape' so the
+# protagonist-rotation in prompt_builder has something distinctive to
+# pick up. seed % 4 picks the type.
+WEEK_TYPES = ["cup_heavy", "time_morning", "place_cafe", "weather_rainy"]
+
+
 def make_random_week(seed: int) -> dict:
     rng = random.Random(seed)
+    week_type = WEEK_TYPES[seed % len(WEEK_TYPES)]
 
-    # Pick a *dominant* weather for the week so the output prompt has a
-    # clear top-1 instead of always being a wash.
-    week_weather = rng.choice(WEATHERS)
+    # Dominant weather + how strongly it dominates
+    if week_type == "weather_rainy":
+        week_weather = "rainy"
+        weather_consistency = 0.95
+    else:
+        week_weather = rng.choice(["sunny", "cloudy", "windy"])
+        weather_consistency = 0.55  # mixed weather, weather not dominant
+
+    # Focal place for place_cafe weeks
+    focal_place = next((p for p in PLACES if p["category"] == "cafe"), None) \
+        if week_type == "place_cafe" else None
 
     entries = []
     for d in range(7):
-        # 0-4 sips per day; sometimes none, so totals vary across seeds
-        n_water = rng.choices([0, 1, 2, 3, 4, 5], weights=[1, 2, 3, 3, 2, 1])[0]
+        # Water count
+        if week_type == "cup_heavy":
+            n_water = rng.randint(4, 7)
+        else:
+            n_water = rng.choices([0, 1, 2, 3, 4], weights=[1, 2, 3, 3, 2])[0]
+
         water = []
         for _ in range(n_water):
-            h = rng.randint(7, 22)
+            if week_type == "time_morning":
+                h = rng.randint(6, 10)  # all morning
+            else:
+                h = rng.randint(7, 22)
             m = rng.randint(0, 59)
             ml = rng.choice([150, 200, 250, 300, 350])
             water.append({"time": f"{h:02d}:{m:02d}", "ml": ml})
 
-        # 70% of days follow the dominant weather, 30% drift
         weather_today = (
-            week_weather if rng.random() < 0.7 else rng.choice(WEATHERS)
+            week_weather if rng.random() < weather_consistency else rng.choice(WEATHERS)
         )
         weather = {"summary": weather_today, "temp_c": rng.randint(-5, 30), "icon": "x"}
 
-        n_places = rng.randint(0, 3)
-        places = rng.sample(PLACES, k=min(n_places, len(PLACES)))
+        # Places
+        if focal_place and rng.random() < 0.9:
+            places = [focal_place]
+            extras = rng.randint(0, 1)
+            others = [p for p in PLACES if p["category"] != "cafe"]
+            places.extend(rng.sample(others, k=min(extras, len(others))))
+        else:
+            n_places = rng.randint(0, 3)
+            places = rng.sample(PLACES, k=min(n_places, len(PLACES)))
 
         entries.append(
             {
@@ -86,7 +114,7 @@ def make_random_week(seed: int) -> dict:
         )
 
     return {
-        "user_id": f"random_{seed}",
+        "user_id": f"random_{seed}_{week_type}",
         "week_start": "2026-04-27",
         "week_end": "2026-05-03",
         "entries": entries,
@@ -96,7 +124,7 @@ def make_random_week(seed: int) -> dict:
 def run_one(seed: int) -> dict:
     week = make_random_week(seed)
     summary = diary.summarize(week)
-    built = prompt_builder.build(summary)
+    built = prompt_builder.build(summary, seed=seed)
 
     collage = base_collage.render(summary)
     collage_path = SAMPLES / f"random_w{seed}_collage.png"

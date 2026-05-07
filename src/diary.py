@@ -2,10 +2,23 @@
 from __future__ import annotations
 
 import json
+import re
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
+
+_HOUR_RE = re.compile(r"^(\d{1,2}):")
+
+
+def _parse_hour(t: str) -> int | None:
+    if not t:
+        return None
+    m = _HOUR_RE.match(t)
+    if not m:
+        return None
+    h = int(m.group(1))
+    return h if 0 <= h <= 23 else None
 
 
 @dataclass
@@ -15,6 +28,7 @@ class WeekSummary:
     total_water_ml: int
     avg_water_ml_per_day: float
     water_event_count: int
+    water_hours: list  # hour-of-day (0..23) for every sip across the week
     weather_counts: dict
     dominant_weather: str
     avg_temp_c: float
@@ -32,6 +46,7 @@ def summarize(week: dict) -> WeekSummary:
     entries = week.get("entries", [])
     water_total = 0
     water_count = 0
+    water_hours: list[int] = []
     weathers: Counter = Counter()
     temps: list[float] = []
     place_cats: Counter = Counter()
@@ -43,6 +58,10 @@ def summarize(week: dict) -> WeekSummary:
         day_water = sum(int(i.get("ml", 0)) for i in intakes)
         water_total += day_water
         water_count += len(intakes)
+        for i in intakes:
+            h = _parse_hour(i.get("time", ""))
+            if h is not None:
+                water_hours.append(h)
 
         weather = day.get("weather", {}) or {}
         if weather.get("summary"):
@@ -71,6 +90,7 @@ def summarize(week: dict) -> WeekSummary:
         total_water_ml=water_total,
         avg_water_ml_per_day=round(water_total / days, 1),
         water_event_count=water_count,
+        water_hours=water_hours,
         weather_counts=dict(weathers),
         dominant_weather=(weathers.most_common(1)[0][0] if weathers else "unknown"),
         avg_temp_c=round(sum(temps) / len(temps), 1) if temps else 0.0,

@@ -31,7 +31,7 @@ SAMPLES.mkdir(exist_ok=True)
 def run_one(seed: int) -> dict:
     week = make_random_week(seed)
     summary = diary.summarize(week)
-    built = prompt_builder.build(summary)
+    built = prompt_builder.build(summary, seed=seed)
 
     print(f"\n[t2i] seed={seed}  cups_in_prompt={summary.water_event_count}")
     print(f"[t2i]   subjects={built.subjects}")
