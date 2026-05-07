@@ -10,6 +10,54 @@ that lets us try a checkpoint, look at the result, and decide whether it
 is worth carrying to mobile. The committed `samples/` images and the
 notes below are the actual research output.
 
+## 하찮은 프롬프트 — user-tested round (latest)
+
+User uploaded an actual ChatGPT 하찮은 프롬프트 input/output pair via
+GitHub. These are the closest-match results the local pipeline produces
+right now.
+
+| | image |
+|---|---|
+| 1. **Original photo** (uploaded by user to ChatGPT) | ![](samples/reference/user_test/line/set1_input.png) |
+| 2. **ChatGPT 하찮은 result** (target / ground truth) | ![](samples/reference/user_test/line/set1_output.png) |
+| 3. **Our SD-Turbo txt2img output** (intermediate) | ![](samples/match_set1_sd.png) |
+| 4. **Our pipeline final** — txt2img + `kasun_color` w/ flood-fill BG | ![](samples/match_set1_kasun_color.png) |
+| 5. **Line-only variant** — `kasun_line` on the same SD output | ![](samples/match_set1_kasun_line.png) |
+
+### What lines up vs. what doesn't
+
+✅ **Aesthetic registers match**: flat colour fill, thick black outlines,
+visible chunky pixels, near-white paper background, deliberately wonky
+proportions, naive amateur energy.
+
+❌ **Photo layout is lost**: ChatGPT preserves the cafe scene (man at
+table, coffee cup, plant on left, hanging lights). Our `txt2img` path
+hallucinates a different composition (man holding a plant pot) because
+SD-Turbo never saw the photo. `img2img` paths preserve the layout but
+keep too much cafe-interior scenery — pure-pixel BG isolation can't
+cleanly separate subject from BG without a real segmentation step.
+
+### Why the gap exists
+
+ChatGPT does **(1) understand photo → (2) abstract scene → (3) redraw
+in doodle style** as a single end-to-end model step. We do it in two
+stages: SD-Turbo for the doodle, kasun_color for the finish. The
+"abstract the scene" middle step is the one the GPT-4o model performs
+implicitly that our pipeline doesn't have an equivalent for.
+
+### Two paths from here
+
+1. **Accept layout drift, ship the txt2img path**: the diary postcard
+   product *generates from text data anyway*, so photo fidelity isn't
+   actually a requirement. Result quality matches the trend visually.
+2. **Add a tiny segmentation step** (e.g. rembg, ~25 MB on mobile)
+   between SD and kasun, to isolate the subject so we can keep the
+   photo-faithful img2img path AND the white BG.
+
+Driver: [scripts/match_user_ref.py](scripts/match_user_ref.py).
+Filter: [src/kasun_filter.py](src/kasun_filter.py) `kasun_color` with
+`bg_to_white=True`.
+
 ## Hardware envelope of this PC
 
 - AMD Radeon Pro 580X (4 GB), CPU torch only — no CUDA, no torch-directml
