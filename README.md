@@ -106,10 +106,39 @@ medium and cultural reference. `renaissance_oil` lands but is already
 heavily memed; `half_remembered_film` is too clean — no wrongness, no
 hook.
 
-The single most interesting candidate is `friends_mom_portrait`: the
-prompt itself ("draw it as if your friend's mom drew you in 2003") is
-specific, evocative, copy-pasteable, and globally legible — the four
-properties that made the original trend portable across languages.
+### Round 2: drill into the two strongest finds
+
+[scripts/style_viral_drill.py](scripts/style_viral_drill.py) runs four
+variants — two on each of `friends_mom_portrait` and `hotel_art_70s` —
+with the same subject and seed for direct comparison.
+
+| variant | output | reading |
+|---|---|---|
+| `mom_korean_living_room` | ![drill1](samples/drill_mom_korean_living_room.png) | red wooden frame, dark navy starry background, green cardigan, plant — *reads as the kind of art on every Korean grandmother's living-room wall*. The frame is included **inside the image**, adding one more layer of meta to the "earnest hung-up amateur art" idea. **★★★★★ — round-2 winner, beats round-1.** |
+| `retired_engineer_watercolor` | ![drill2](samples/drill_retired_engineer_watercolor.png) | competent loose watercolor, but "retired engineer" identity does not read visually — looks like generic amateur watercolor. ★★★★ |
+| `korean_wedding_hall_90s` | ![drill3](samples/drill_korean_wedding_hall_90s.png) | the model is *too familiar* with this motif and renders it competently — loses the kitsch we wanted. ★★★ |
+| `doctors_office_85` | ![drill4](samples/drill_doctors_office_85.png) | captures the soothing institutional palette but the hook is mild. ★★★★ |
+
+**One real lesson.** Cultural specificity helps when the model has
+*just enough* prior knowledge to recognize the rhyme but not enough to
+render it perfectly. `mom_korean_living_room` hits the sweet spot —
+recognizable but slightly off, with the framed-on-wall presentation
+landing as a separate visual punchline. `korean_wedding_hall_90s`
+overshoots into "competent" because the model has seen too many of
+those.
+
+### Current ranking
+
+1. `mom_korean_living_room` — earnest amateur + Korean frame meta + globally legible
+2. `friends_mom_portrait` — same DNA in a different cultural rhyme
+3. `hotel_art_70s` — distinctive ugly-kitsch
+4. `embroidered_sampler` — distinctive medium
+
+The single most interesting candidate is now `mom_korean_living_room`:
+the rhyme is specific enough to be funny but generic enough to apply
+to any subject ("draw it like the painting on a Korean grandmother's
+living-room wall, in its frame"), which is the four properties that
+made the original 하찮은 프롬프트 portable across languages.
 
 ## Cross-platform availability: which models ship without our own conversion
 
