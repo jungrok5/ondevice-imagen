@@ -22,20 +22,51 @@ notes below are the actual research output.
 That gap matters because everything below is targeting "what runs on a
 phone in the background while charging" — slow on PC ≠ slow on device.
 
-## Random-weeks + true pixel art
+## Random-weeks: protagonist rotation per week
+
+The product question is "given a week of small water-drinking moments
+(when, where, what weather), make me a postcard that *is different
+every week and surprises me*". An earlier version of the prompt builder
+hard-coded "N water cups arranged in a row" as the first subject, which
+made every week's output a row of cups regardless of the data — the
+diary was the fingerprint, not the mood.
+
+The current builder ([src/prompt_builder.py](src/prompt_builder.py))
+scores four protagonist axes per week:
+
+- **cups**: water_event_count is unusually high (≥25) or low (≤5)
+- **weather**: 6+ day streak of rain or snow, or a non-sunny majority
+- **place**: one category accounts for ≥40% of visits
+- **time**: sips concentrated ≥40% in one bucket (morning/night carry
+  more weight than afternoon/evening)
+
+Argmax picks the week's protagonist deterministically (same data →
+same image; different week → different axis → different image).
+Three atmospheric phrases — one for the protagonist axis, two
+supporting — are drawn from per-axis pools to compose a quiet scene
+instead of a literal object count.
+
+Four reference seeds, each engineered to fire a different axis:
+
+| seed | week shape | protagonist | leading moment phrase |
+|---|---|---|---|
+| 11 | rainy 6 of 7 days | **weather** | "umbrellas crossing a quiet alley" |
+| 22 | cafe visited daily | **place** | "a corner cafe with steam rising from a teapot" |
+| 33 | every sip 06:00-10:00 | **time** | "morning steam from a fresh cup" |
+| 44 | 36 sips in a week | **cups** | "many half-finished glasses on a wooden table" |
+
+`scripts/dump_random_prompts.py` prints the full prompts and scores
+without paying for SD inference — useful for tuning the rotation logic.
+
+### True pixel art via post-process
 
 The original prompt's "픽셀 하나하나 보이는 저화질" line is asking for
 *actual* pixel-perfect output. SD outputs look pixel-ish but ship with
 anti-aliased edges and a full RGB palette. The fix is post-process:
 [src/pixelize.py](src/pixelize.py) downsamples to 64×64, median-cut
 quantises to 16 colors, then upscales nearest-neighbor — every 8×8
-block becomes a single solid pixel.
-
-[scripts/random_weeks_doodle.py](scripts/random_weeks_doodle.py)
-synthesises four randomised weekly diaries (different water counts,
-weathers, places), runs each through the existing prompt builder +
-collage + SD-Turbo img2img pipeline, and applies pixelize. ~30 s per
-seed on cached CPU.
+block becomes a single solid pixel. Outputs are 1024×1024 so the
+chunky pixels read clearly on HiDPI displays.
 
 | seed | doodle (raw SD) | pixel-perfect |
 |---|---|---|
