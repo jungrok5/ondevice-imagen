@@ -13,6 +13,7 @@ install.log
 samples/refresh.log
 samples/quality.log
 samples/style.log
+samples/cross.log
 .cache/
 models/
 hf_cache/

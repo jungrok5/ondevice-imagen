@@ -1,4 +1,5 @@
 {
+  "_note": "Synthetic sample data for prototype testing. Not real user data.",
   "user_id": "demo",
   "week_start": "2026-04-27",
   "week_end": "2026-05-03",
@@ -13,8 +14,8 @@
         { "time": "18:50", "ml": 200 }
       ],
       "places": [
-        { "name": "Hannam Cafe", "category": "cafe", "lat": 37.535, "lng": 127.011 },
-        { "name": "Han River Park", "category": "park", "lat": 37.527, "lng": 127.008 }
+        { "name": "Cafe A", "category": "cafe" },
+        { "name": "Riverside Park", "category": "park" }
       ]
     },
     {
@@ -25,7 +26,7 @@
         { "time": "13:10", "ml": 200 }
       ],
       "places": [
-        { "name": "Office", "category": "work", "lat": 37.501, "lng": 127.039 }
+        { "name": "Workplace", "category": "work" }
       ]
     },
     {
@@ -38,8 +39,8 @@
         { "time": "21:00", "ml": 200 }
       ],
       "places": [
-        { "name": "Kyobo Bookstore", "category": "bookstore", "lat": 37.570, "lng": 126.978 },
-        { "name": "Ramen Shop", "category": "restaurant", "lat": 37.562, "lng": 126.985 }
+        { "name": "Bookstore", "category": "bookstore" },
+        { "name": "Noodle Shop", "category": "restaurant" }
       ]
     },
     {
@@ -51,7 +52,7 @@
         { "time": "15:00", "ml": 300 }
       ],
       "places": [
-        { "name": "Namsan Tower", "category": "landmark", "lat": 37.551, "lng": 126.988 }
+        { "name": "Tower Observatory", "category": "landmark" }
       ]
     },
     {
@@ -63,7 +64,7 @@
         { "time": "17:45", "ml": 200 }
       ],
       "places": [
-        { "name": "Seongsu Cafe Street", "category": "cafe", "lat": 37.544, "lng": 127.056 }
+        { "name": "Cafe B", "category": "cafe" }
       ]
     },
     {
@@ -76,8 +77,8 @@
         { "time": "19:00", "ml": 300 }
       ],
       "places": [
-        { "name": "Olympic Park", "category": "park", "lat": 37.521, "lng": 127.121 },
-        { "name": "Lotte Mart", "category": "market", "lat": 37.512, "lng": 127.103 }
+        { "name": "Forest Park", "category": "park" },
+        { "name": "Grocery Store", "category": "market" }
       ]
     },
     {
@@ -88,7 +89,7 @@
         { "time": "14:00", "ml": 250 }
       ],
       "places": [
-        { "name": "Home Cafe", "category": "home", "lat": 37.500, "lng": 127.030 }
+        { "name": "Apartment", "category": "home" }
       ]
     }
   ]

@@ -1,91 +1,142 @@
-# local-ai-rnd — Weekly Postcard Doodle
+# local-ai-rnd
 
-PC prototype for an Android/iOS app that turns a week of personal data
-(water intake, weather, GPS-derived POIs) into a deliberately badly drawn
-postcard, generated on-device.
+Research notes on what on-device image generation can do in 2026 — what
+models run on iPhone and Android phones without per-platform engineering,
+how good the output gets, and how the speed / quality / aesthetic dials
+trade off.
 
-The aesthetic target (per the user's spec, in Korean):
+The PC scaffold here is the testbed: a small diffusers + Gradio harness
+that lets us try a checkpoint, look at the result, and decide whether it
+is worth carrying to mobile. The committed `samples/` images and the
+notes below are the actual research output.
 
-> 첨부한 이미지를 최대한 서툴고, 휘갈긴 듯하고, 진짜 한심하게 다시 그려줘.
-> 배경은 흰색으로 하고, 옛날 컴퓨터 그림판 프로그램에서 마우스로 그린 것처럼
-> 보이게 해줘. ... 픽셀 하나하나 보이는 저화질 느낌도 살려서 ...
+## Hardware envelope of this PC
 
-That intent is encoded as SD-friendly tags in [src/prompt_builder.py](src/prompt_builder.py).
+- AMD Radeon Pro 580X (4 GB), CPU torch only — no CUDA, no torch-directml
+- Python 3.9, diffusers + transformers + Gradio
+- Reference numbers below are for **CPU FP32 inference**. For comparison:
+  - DirectML on the Radeon: ~5-10× faster than these numbers
+  - iPhone 14+ Apple Neural Engine: ~3-10 s for the same workloads
+  - Snapdragon 8 Gen 2 Hexagon NPU: ~5-10 s
 
-## Result so far (CPU, SD-Turbo, seed=42)
+That gap matters because everything below is targeting "what runs on a
+phone in the background while charging" — slow on PC ≠ slow on device.
 
-| step | image |
+## Speed dial: SD-Turbo (1-4 steps)
+
+SD-Turbo is the "fast" end. Single-step generation, ~1.4 GB model.
+
+| input | output |
 |---|---|
-| **Base collage** — rule-rendered from the diary, text-free pictograms (sun + cups + place-icon grid). Acts as the img2img seed. | ![base](samples/base_collage.png) |
-| **img2img** (32.5 s) — collage redrawn in the bad-doodle style. Layout preserved, style fully transformed. The recommended path. | ![img2img](samples/sd_img2img.png) |
-| **txt2img** (24.3 s) — prompt-only generation for comparison. Doodle vibe but loses the "white paper" intent and adds color. | ![txt2img](samples/sd_txt2img.png) |
+| Rule-rendered pictographic collage from `data/sample_week.json` (used as the img2img seed) | ![base](samples/base_collage.png) |
+| img2img redraw — 32.5 s on CPU, `strength=0.99`, 4 steps | ![img2img](samples/sd_img2img.png) |
+| txt2img — 24.3 s on CPU, 4 steps | ![txt2img](samples/sd_txt2img.png) |
 
-**Verdict for the mobile port**: img2img on a Skia-rendered pictographic
-collage is the path. Pure txt2img is cheaper but loses too much aesthetic
-control.
+Three lessons (see commits `0922e01` and `ec7dc20`):
 
-### Aside: what this PC can do at the *quality* end of the dial
+1. **Front-load style tags.** CLIP truncates at 77 tokens; whatever is at
+   the front of the prompt dominates. Putting style at the tail silently
+   loses the style.
+2. **Keep text off the img2img seed.** SD interprets text in the seed as
+   text and emits garbled fake text in the output — use pure pictograms.
+3. **`strength * steps` is the denoising budget.** On 4-step SD-Turbo,
+   `strength < 0.95` leaves the seed image too visible.
 
-To bracket the hardware envelope, [scripts/quality_demo.py](scripts/quality_demo.py)
-runs two SD 1.5 fine-tunes at full 30-step Euler-a, same prompt + seed:
+## Quality dial: SD 1.5 fine-tunes (30 steps Euler-a)
+
+The opposite end. Same prompt + seed across both:
 
 | model | runtime (CPU) | output |
 |---|---|---|
-| `Lykon/dreamshaper-8` (realistic) | 246 s (~8 s/step) | ![realistic](samples/quality_realistic.png) |
-| `dreamlike-art/dreamlike-anime-1.0` (anime) | 249 s (~8 s/step) | ![anime](samples/quality_anime.png) |
+| `Lykon/dreamshaper-8` (realistic / versatile) | 246 s | ![realistic](samples/quality_realistic.png) |
+| `dreamlike-art/dreamlike-anime-1.0` (anime) | 249 s | ![anime](samples/quality_anime.png) |
 
-So the PC's ceiling is "magazine-grade SD 1.5 in ~4 min/image" on plain CPU
-torch. With `torch-directml` on the Radeon, expect ~30-60 s. A modern phone
-NPU does the same workload in ~3-10 s — which is why on-device generation
-is suddenly realistic in 2026.
+So the PC ceiling is "magazine-grade SD 1.5 in ~4 min/image" on plain CPU
+torch. The same workload finishes in 3-10 s on a current-gen phone NPU,
+which is why on-device generation is finally viable in 2026.
 
-### Style exploration: searching for the postcard aesthetic
+## Aesthetic dial: prompt-only style on a single base model
 
-The original "intentionally bad doodle" prompt is now a saturated trend
-(ChatGPT shipped it as the official 낙서풍 template). For the actual
-postcard, we want something more emotional / artistic / unique.
-[scripts/style_explore.py](scripts/style_explore.py) renders one preset
-per row from [src/styles.py](src/styles.py), all from the same diary
-subject and seed:
+`Lykon/dreamshaper-8` + style prefix in the prompt, same subject + seed
+across all entries — the only varying axis is the aesthetic preset
+([src/styles.py](src/styles.py)).
 
-| preset | output | verdict |
+| preset | output | finding |
 |---|---|---|
-| `watercolor_diary` | ![watercolor](samples/style_watercolor_diary.png) | **direct hit** — paper texture, pastel washes, journal-page composition all read as real watercolor |
-| `risograph_zine` | ![riso](samples/style_risograph_zine.png) | palette landed but the *texture* (halftone dots, grain, registration drift) is missing → blue-tinted photo, needs a riso LoRA |
-| `crayon_picturebook` | ![crayon](samples/style_crayon_picturebook.png) | warm composition but lacks crayon physicality → reads as digital illustration, also needs a LoRA |
+| `watercolor_diary` | ![watercolor](samples/style_watercolor_diary.png) | **lands cleanly** — paper texture, pastel washes, journal composition all read as watercolor |
+| `risograph_zine` | ![riso](samples/style_risograph_zine.png) | palette landed but halftone / grain / registration drift missing → just a blue-tinted photo. Needs a riso LoRA. |
+| `crayon_picturebook` | ![crayon](samples/style_crayon_picturebook.png) | warm composition but lacks crayon physicality → reads as digital illustration. Also needs a LoRA. |
 
-**Generalization**: SD 1.5 fine-tunes are strong on subject + lighting, weak
-on medium-specific *physicality*. Watercolor is the cheapest aesthetic that
-already works without LoRAs — that's the lead candidate for the postcard
-look. Tighter directions and LoRA stacks (riso, crayon, ink-and-wash,
-minhwa, ghibli) are next-step work.
+**Generalization**: SD 1.5 fine-tunes are strong on subject and lighting,
+weak on medium-specific *physicality*. Anything where the texture of the
+medium is the point (riso, crayon, linocut) needs a dedicated LoRA. Looks
+like watercolor or painterly illustration come essentially for free.
 
-## What this prototype answers
+## Cross-platform availability: which models ship without our own conversion
 
-1. Can a small Stable Diffusion model produce the "intentionally bad doodle"
-   aesthetic from a structured weekly summary? — **Yes** (see samples above).
-2. Does img2img on a rule-rendered collage beat pure txt2img? — **Yes**, by
-   a clear margin once `strength >= 0.95` so the seed is *layout guide*, not
-   *content to preserve*.
-3. What latency / model size do we need to budget for the mobile port? —
-   SD-Turbo at 4 steps × 512² produces a frame in ~30 s on a Radeon Pro 580X
-   CPU path. On an iPhone 14 Neural Engine the same workload is ~3-6 s; on a
-   Snapdragon 8 Gen 2 with the MediaPipe ImageGenerator task, ~5-10 s.
+The interesting practical question for on-device deployment is: which
+checkpoints are already pre-converted for Apple Core ML (so iOS is a
+zero-conversion drop-in) AND can be ONNX-exported for Android via a
+single `optimum-cli` command?
 
-The full mobile architecture lives in [docs/mobile-architecture.md](docs/mobile-architecture.md).
+| base checkpoint | iOS pre-converted (Hugging Face) | Android (ONNX) |
+|---|---|---|
+| `stable-diffusion-v1-5/stable-diffusion-v1-5` | `apple/coreml-stable-diffusion-v1-5` (official Apple) | `optimum-cli export onnx` |
+| `stabilityai/sd-turbo` | `apple/coreml-*` (official Apple) | `optimum-cli export onnx` |
+| `Lykon/dreamshaper-8` | `coreml-community/coreml-DreamShaper-v8_cn` | `optimum-cli export onnx` |
+| `dreamlike-art/dreamlike-diffusion-1.0` | `coreml-community/coreml-dreamlike-diffusion` | `optimum-cli export onnx` |
+| `dreamlike-art/dreamlike-photoreal-2.0` | covered by `coreml-community` | `optimum-cli export onnx` |
+| `dreamlike-art/dreamlike-anime-1.0` | covered by `coreml-community` | `optimum-cli export onnx` |
+| `prompthero/openjourney` | covered by `coreml-community` | `optimum-cli export onnx` |
+| `SG161222/Realistic_Vision_V5.1_noVAE` | `coreml-community/coreml-realisticVision-v51VAE_cn` | `optimum-cli export onnx` |
+
+Reference samples generated on this PC for the four models we hadn't
+already exercised (same prompt + seed across all four):
+
+| model | output |
+|---|---|
+| `stable-diffusion-v1-5` (baseline) | ![sd15](samples/cross_sd_1_5_base.png) |
+| `dreamlike-diffusion-1.0` | ![ddiff](samples/cross_dreamlike_diffusion.png) |
+| `openjourney` | ![oj](samples/cross_openjourney.png) |
+| `dreamlike-photoreal-2.0` | ![dphoto](samples/cross_dreamlike_photoreal_2.png) |
+
+(See [scripts/cross_platform_demo.py](scripts/cross_platform_demo.py).)
+
+## Mobile architecture notes
+
+The full notes on background-task scheduling, Core ML / MediaPipe
+deployment, app size, and what is *verified vs. assumed* live in
+[docs/mobile-architecture.md](docs/mobile-architecture.md). Highlights:
+
+- **iOS**: pre-converted `.mlpackage` via Apple's `ml-stable-diffusion`
+  Swift library. No conversion code needed for any of the models above.
+- **Android**: `optimum-cli export onnx` once → ONNX Runtime Mobile with
+  NNAPI / QNN delegates. Same checkpoint, same prompt, same result.
+- **Background scheduling** (`BGProcessingTask` on iOS, `WorkManager` +
+  Foreground Service on Android) makes the "slow inference is fine" path
+  viable: phone runs the model overnight while charging.
+- **LoRA hot-swap** is not supported on either platform — each LoRA
+  needs to be merged into a base checkpoint and shipped as its own
+  artifact. Watercolor doesn't need a LoRA, so the no-LoRA path is the
+  cheapest aesthetic to ship.
 
 ## Repository layout
 
 ```
 local-ai-rnd/
-  data/sample_week.json         7 days of fake diary data
-  src/diary.py                  load + summarize a week
-  src/prompt_builder.py         WeekSummary -> SD prompt
-  src/base_collage.py           WeekSummary -> PIL collage (img2img seed)
-  src/generator.py              SD-Turbo txt2img + img2img
-  src/app.py                    Gradio UI for end-to-end testing
-  outputs/                      generated PNGs
-  docs/mobile-architecture.md   the on-device target
+  data/sample_week.json             synthetic 7-day record (no real user data)
+  src/diary.py                      load + summarize the synthetic week
+  src/prompt_builder.py             WeekSummary -> SD prompt
+  src/base_collage.py               WeekSummary -> PIL collage (img2img seed)
+  src/generator.py                  SD-Turbo txt2img + img2img wrapper
+  src/styles.py                     aesthetic presets (watercolor, riso, ...)
+  src/app.py                        Gradio UI
+  scripts/refresh_samples.py        regenerate the SD-Turbo reference images
+  scripts/quality_demo.py           regenerate the 30-step quality references
+  scripts/style_explore.py          regenerate the aesthetic-preset references
+  scripts/cross_platform_demo.py    regenerate the cross-platform references
+  docs/mobile-architecture.md       on-device deployment plan
+  samples/                          committed reference outputs
 ```
 
 ## Run it
@@ -97,28 +148,30 @@ Windows (PowerShell), Python 3.9+:
 py -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
 
-# 2. launch the UI locally
+# 2. launch the Gradio UI locally
 .\.venv\Scripts\python.exe -m src.app
 
-# 2b. or expose a public *.gradio.live link (anyone with the URL can use it,
-#     so don't leave it running unattended; link expires in ~72h)
+# 2b. or expose a public *.gradio.live tunnel (link expires in ~72h, anyone
+#     with the URL can use it — don't leave it running unattended)
 .\.venv\Scripts\python.exe -m src.app --share
 ```
 
-Then open http://127.0.0.1:7860 — the workflow is Summarize → img2img.
+Then open http://127.0.0.1:7860.
 
-To regenerate the committed reference images in `samples/`:
+To regenerate any of the reference image groups in `samples/`:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\refresh_samples.py
+.\.venv\Scripts\python.exe scripts\refresh_samples.py        # SD-Turbo references
+.\.venv\Scripts\python.exe scripts\quality_demo.py           # 30-step references
+.\.venv\Scripts\python.exe scripts\style_explore.py          # aesthetic presets
+.\.venv\Scripts\python.exe scripts\cross_platform_demo.py    # cross-platform
 ```
 
 ### First run
 
-- The default model `stabilityai/sd-turbo` (~1.4 GB) downloads to the
-  HuggingFace cache on first generation. Subsequent runs are instant.
-- On CPU only, expect ~30-60 s per 512x512 image at 2 steps. On a GPU it
-  drops to a few seconds.
+The first invocation downloads the relevant model weights from Hugging
+Face into the local cache (~1.4 GB for SD-Turbo, ~4 GB per SD 1.5
+fine-tune). Subsequent runs are cached.
 
 ### Optional GPU acceleration on AMD/Intel (Windows)
 
@@ -128,52 +181,15 @@ $env:LAR_DEVICE = "directml"
 .\.venv\Scripts\python.exe -m src.app
 ```
 
-DirectML on a Radeon Pro 580X (4 GB) should be ~5-10x faster than CPU for
-SD-Turbo at 512x512.
+DirectML on the Radeon should be ~5-10× faster than the CPU numbers
+quoted above.
 
 ### Environment knobs
 
-| Variable        | Default                       | Notes                                 |
-|-----------------|-------------------------------|---------------------------------------|
-| `LAR_MODEL_ID`  | `stabilityai/sd-turbo`        | Try `stabilityai/sdxl-turbo` if VRAM allows |
-| `LAR_STEPS`     | `2`                           | SD-Turbo is happy at 1-4              |
-| `LAR_GUIDANCE`  | `0.0`                         | SD-Turbo is trained with guidance off |
-| `LAR_STRENGTH`  | `0.85`                        | img2img: lower = closer to base       |
-| `LAR_DEVICE`    | auto (cuda > directml > cpu)  | Force `cpu` or `directml`             |
-
-## How the prompt is built
-
-`prompt_builder.build()` puts the **style block first** (CLIP truncates at
-77 tokens, and the front of the prompt has the most influence) and concatenates
-subjects derived from the diary after it:
-
-- style → `ugly MS Paint doodle, white paper, black ink only, pixelated low-res, child scribble, jagged shaky lines, naive crude drawing`
-- water_event_count → "N mismatched water cups in a row"
-- dominant_weather → "smiling sun" / "lumpy clouds" / etc.
-- place categories → "wobbly coffee cup", "lopsided trees", ...
-
-Tweak the dictionaries in [src/prompt_builder.py](src/prompt_builder.py) to taste.
-
-### Lessons from the iteration
-
-The committed git history shows two passes (compare commits `0922e01` and `ec7dc20`):
-
-1. **Front-load style tags** — putting them at the prompt tail meant CLIP
-   silently truncated *exactly the style tokens that mattered most*, so the
-   first run kept full color and ignored "white background".
-2. **Keep text off the img2img seed** — early collage had English labels;
-   SD reinterpreted them as garbled fake text in the output. The current
-   collage is purely pictographic.
-3. **Use `strength >= 0.95` on SD-Turbo img2img** — anything lower leaves
-   the seed too visible. With low step counts, `strength * steps` is the
-   real "denoising budget."
-
-## What is *not* in the prototype
-
-- Real data ingestion (HealthKit / Google Fit, weather API, geocoder). The
-  prototype reads a JSON file; the mobile app will hydrate the same shape
-  from on-device sources.
-- Any LLM step. The prompt is rule-based on purpose — predictable and
-  shippable. If you later want freer prose, hook the summary into an
-  on-device LLM (Apple Intelligence FoundationModel / MediaPipe LLM).
-- Multi-image postcard layout / typography. Out of scope for feasibility.
+| Variable        | Default                      | Notes                                 |
+|-----------------|------------------------------|---------------------------------------|
+| `LAR_MODEL_ID`  | `stabilityai/sd-turbo`       | Override for the Gradio app's default |
+| `LAR_STEPS`     | `2`                          | SD-Turbo is happy at 1-4              |
+| `LAR_GUIDANCE`  | `0.0`                        | SD-Turbo is trained with guidance off |
+| `LAR_STRENGTH`  | `0.85`                       | img2img: lower = closer to base       |
+| `LAR_DEVICE`    | auto (cuda > directml > cpu) | Force `cpu` or `directml`             |
