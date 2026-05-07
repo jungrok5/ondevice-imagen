@@ -16,6 +16,7 @@ samples/style.log
 samples/cross.log
 samples/viral.log
 samples/drill.log
+samples/random.log
 .cache/
 models/
 hf_cache/
