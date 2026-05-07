@@ -10,6 +10,56 @@ that lets us try a checkpoint, look at the result, and decide whether it
 is worth carrying to mobile. The committed `samples/` images and the
 notes below are the actual research output.
 
+## LoRA shootout (same Christmas event, 4 SDXL LoRAs)
+
+User picked 6 candidate LoRAs from Civitai. Two (`pokemon-trainer-sprite`,
+`sketchit`) require Civitai login for direct download — skipped. One
+(`ms-paint-lora`) is SD 1.5, dim-incompatible with our SDXL-Turbo
+base — skipped. The four runnable ones, all on the same input event
+and seed, with only the LoRA + trigger swapping:
+
+| LoRA | trigger | result |
+|---|---|---|
+| `worstimever` (current v10 default) | `DD-wte artstyle, worst-im-ever cartoon doodle` | ![](samples/lora_compare_worstimever.png) |
+| `sdxl_mspaint_portraits` | `MSPaint drawing` | ![](samples/lora_compare_mspaint_portraits.png) |
+| `lah_cute_social` | `cute doodle` | ![](samples/lora_compare_lah_cute_social.png) |
+| `pixel_art_xl` | (none) | ![](samples/lora_compare_pixel_art_xl.png) |
+
+Reads of each:
+
+- **worstimever** — saturated palette, thick outlines, "earnestly wonky"
+  Korean apartment + Christmas lights + bare trees. Still the closest
+  match to the trend's deliberately-bad register.
+- **mspaint_portraits** — despite the name, output is a clean
+  Christmas illustration with detailed buildings, string lights, a
+  little red car. Polished, not crude — off-target.
+- **lah_cute_social** — behaves like a character LoRA: drops the
+  scene entirely and inserts a kawaii sticker-girl surrounded by
+  Christmas decor. Wrong tool for "draw the scene from the data".
+- **pixel_art_xl** — preserves the scene composition exactly but in
+  16-bit RPG aesthetic. Not the 하찮은 trend but a *legit alternative
+  viral angle* for users who want a Stardew-Valley-style retro vibe.
+
+Verdict: worstimever stays the default for v10. pixel_art_xl is
+worth keeping as a separate visual mode.
+
+Driver: [scripts/compare_loras.py](scripts/compare_loras.py) — drop
+new LoRA `.safetensors` files into `models/lora/`, add a row to
+`LORA_TABLE`, rerun.
+
+### License caveat (per user concern)
+
+| layer | license | commercial product? |
+|---|---|---|
+| SDXL-Turbo (base) | **Stability Non-Commercial Research License** | ❌ requires paid Stability commercial license |
+| each LoRA | varies per Civitai page (Allowed Use toggles) | needs per-LoRA check on civitai.com |
+
+Even if every LoRA's "Allowed Use" toggles are permissive, the
+SDXL-Turbo base alone forbids commercial product. For shippable
+product the base needs to flip to SDXL 1.0 base / SD 1.5 / FLUX.1
+schnell (Apache 2.0, fully commercial-safe). v10 stands as a
+prototype/research milestone.
+
 ## Single-event flow — button press → prompt → image
 
 The actual product flow when the user presses the "draw this moment"
