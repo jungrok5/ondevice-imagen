@@ -10,6 +10,30 @@ that lets us try a checkpoint, look at the result, and decide whether it
 is worth carrying to mobile. The committed `samples/` images and the
 notes below are the actual research output.
 
+## Lightning + style-LoRA quality fixes — A/B/C/D shootout
+
+Earlier round flagged a real gap: SDXL-Turbo + worstimever (v10)
+produces clean stylized output, but the commercial path
+(SDXL 1.0 base + Lightning LoRA + worstimever) muddies the worstimever
+character because two LoRAs fight for the same UNet layers. Four
+candidate fixes, all on the same Christmas event + seed:
+
+| option | result | reads |
+|---|---|---|
+| **A** Lightning UNet variant (3 GB UNet swap, worst@0.9) | ![](samples/opt_A_lightning_unet.png) | strongest worstimever character preserved — thick scratchy outlines + snow + tree. Closest to v10. Cost: ship the 3 GB UNet per visual mode. |
+| **B** Lightning 8-step LoRA (worst@0.9) | ![](samples/opt_B_lightning_8step.png) | single tower + kid-sketch character. More denoise budget but starts polishing away the wonky bits. |
+| **C** Lightning 4-step + worstimever@1.2 | ![](samples/opt_C_worst_scale12.png) | scaling worst stronger produces *chaos* instead of clean style. Force-scale doesn't fix the LoRA conflict. |
+| **D** Hyper-SD 4-step LoRA + worst@0.9 (TCDScheduler) | ![](samples/opt_D_hyper.png) | cleanest Christmas-card composition: apartments + tree + string lights + dusk. Outlines softer than worstimever's signature; less 한심함 but a distinct viable mode. |
+
+Two recommended tracks:
+
+| track | stack | trade-off |
+|---|---|---|
+| **Quality-first** | A — Lightning UNet variant + worstimever | matches v10 vibe; ships 3 GB extra UNet per visual mode |
+| **Mobile-economics** | D — Hyper-SD 4-step LoRA + worstimever | shares base; only +787 MB LoRA per mode; visual register is cleaner Christmas-card style |
+
+Driver: [scripts/compare_options.py](scripts/compare_options.py).
+
 ## Commercial-OK base shootout (current top-of-stack)
 
 User picked worstimever + sdxl_mspaint_portraits as the two favourite
