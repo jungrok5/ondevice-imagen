@@ -95,10 +95,32 @@ regardless of strength.
 The closest single output is `pencil_30_05_005` (best hand-drawn feel)
 or `stylize_60_045` (thick outlines), but neither hits all of the
 trend's defining qualities at once: thick black outlines + flat
-pastel colour fill + visible mouse-tremor wobble. Next step (v7) is a
-combined filter that takes thick edges from stylize, pastel fill from
-desaturated stylize, and adds random per-row pixel jitter to fake
-mouse-tremor.
+colour fill + visible mouse-tremor wobble.
+
+### v7 — cv2 stylization + row-jitter wobble (current best)
+
+User feedback after v6: prefer the colourful-cartoon direction (v5
+strength=0.85 style), not the pastel pencil sketch. So v7 keeps
+saturation high, takes the thick stylized edges from cv2, and adds
+random per-row horizontal jitter to fake mouse-tremor.
+
+| stage | image |
+|---|---|
+| input | ![](samples/reference/user_test/line/set1_input.png) |
+| SD-Turbo img2img (s=0.75, cartoon prompt) | ![](samples/v7_set1_sd.png) |
+| + cv2.stylization (sigma_s=60, sigma_r=0.45) | ![](samples/v7_set1_stylized.png) |
+| + jitter ±1 px | ![](samples/v7_set1_final_j1.png) |
+| + jitter ±2 px | ![](samples/v7_set1_final_j2.png) |
+| + jitter ±3 px (most hand-drawn feel) | ![](samples/v7_set1_final_j3.png) |
+| reference — ChatGPT 하찮은 (target) | ![](samples/reference/user_test/line/set1_output.png) |
+| user-favourite from v5 s=0.85 | ![](samples/v5_set1_sd_s85.png) |
+
+v7 j3 hits the user-preferred aesthetic register: recognisable
+subject + thick black outlines + colourful flat fill + mouse-tremor
+wobble. Setting drifted from cafe interior to city street because
+SD-Turbo at strength 0.75 redraws the BG context too freely; that's a
+prompt / strength tuning step, or a path for the LoRA / prompt-tuning
+round next.
 
 ### Mobile note
 
