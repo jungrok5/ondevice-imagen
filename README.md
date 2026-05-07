@@ -25,13 +25,98 @@ diary text
   -> result
 ```
 
-| seed | week shape | result |
-|---|---|---|
-| 11 — rainy week | weather protagonist | ![](samples/v10_w11_v1.png) |
-| 22 — time-morning | time protagonist | ![](samples/v10_w22_v1.png) |
-| 33 — place-cafe | place protagonist | ![](samples/v10_w33_v1.png) |
-| 44 — 36 sips of water | cups protagonist | ![](samples/v10_w44_v1.png) |
-| 22 again, fresh RNG | same data → different scene | ![](samples/v10_w22_v2.png) |
+| seed | protagonist | moments injected | result |
+|---|---|---|---|
+| 11 — rainy 6/7 days | weather | umbrellas crossing a quiet alley · a steaming bowl of noodles · a long shadow on a quiet street | ![](samples/v10_w11_v1.png) |
+| 22 — cafe daily | place | a marble counter with a single espresso · a sunny park bench · warm evening light through a window | ![](samples/v10_w22_v1.png) |
+| 33 — morning sips | time | a quiet kitchen at sunrise · a curtain billowing in a quiet room · a small reading nook with a lamp | ![](samples/v10_w33_v1.png) |
+| 44 — 36 cups | cups | a counter crowded with mismatched water cups · soft overcast sky · a fountain in a public square · afternoon light | ![](samples/v10_w44_v1.png) |
+| 22 again, fresh RNG | place | a cozy cafe window seat · a sunny park bench · a desk lamp glowing at dusk | ![](samples/v10_w22_v2.png) |
+
+### Full prompt structure
+
+The actual string handed to SDXL-Turbo for every generation is:
+
+```
+{LORA_TRIGGER}, {STYLE_TAGS}, a postcard of one quiet week: {MOMENTS}
+```
+
+with the constant pieces being:
+
+```
+LORA_TRIGGER  = "DD-wte artstyle, worst-im-ever cartoon doodle"
+
+STYLE_TAGS    = "ugly MS Paint doodle, white paper, black ink only,
+                 pixelated low-res, child scribble, jagged shaky lines,
+                 naive crude drawing"
+
+NEGATIVE      = "photorealistic, sharp focus, polished, professional,
+                 hd, anti-aliased, smooth gradient, oil painting"
+```
+
+`MOMENTS` is whatever `prompt_builder.build()` picks per call from the
+per-axis phrase pools in [src/prompt_builder.py](src/prompt_builder.py).
+Below are the full strings actually run for each of the five samples
+above (CLIP truncates everything past 77 tokens — the "..." marks
+where truncation happened in practice).
+
+#### `v10_w11_v1` (weather protagonist)
+```
+DD-wte artstyle, worst-im-ever cartoon doodle, ugly MS Paint doodle,
+white paper, black ink only, pixelated low-res, child scribble,
+jagged shaky lines, naive crude drawing, a postcard of one quiet
+week: umbrellas crossing a quiet alley, a steaming bowl of noodles
+on a wooden table, a long shadow on a quiet... [truncated]
+```
+
+#### `v10_w22_v1` (place protagonist)
+```
+DD-wte artstyle, worst-im-ever cartoon doodle, ugly MS Paint doodle,
+white paper, black ink only, pixelated low-res, child scribble,
+jagged shaky lines, naive crude drawing, a postcard of one quiet
+week: a marble counter with a single espresso, a sunny park bench
+in late afternoon, warm evening light through a... [truncated]
+```
+
+#### `v10_w33_v1` (time protagonist)
+```
+DD-wte artstyle, worst-im-ever cartoon doodle, ugly MS Paint doodle,
+white paper, black ink only, pixelated low-res, child scribble,
+jagged shaky lines, naive crude drawing, a postcard of one quiet
+week: a quiet kitchen at sunrise, a curtain billowing in a quiet
+room, a small reading nook with a lamp
+```
+
+#### `v10_w44_v1` (cups protagonist)
+```
+DD-wte artstyle, worst-im-ever cartoon doodle, ugly MS Paint doodle,
+white paper, black ink only, pixelated low-res, child scribble,
+jagged shaky lines, naive crude drawing, a postcard of one quiet
+week: a counter crowded with mismatched water cups, a soft overcast
+sky over rooftops, a fountain in a public square, afternoon light
+across a wooden floor [truncated past "public square"]
+```
+
+#### `v10_w22_v2` (same data as `w22_v1`, fresh RNG)
+```
+DD-wte artstyle, worst-im-ever cartoon doodle, ugly MS Paint doodle,
+white paper, black ink only, pixelated low-res, child scribble,
+jagged shaky lines, naive crude drawing, a postcard of one quiet
+week: a cozy cafe window seat with a coffee cup, a sunny park bench
+in late afternoon, a desk lamp glowing at... [truncated]
+```
+
+Notes on prompt construction:
+
+- The **STYLE_TAGS block is front-loaded** because CLIP truncates at
+  77 tokens — putting the style first ensures the doodle aesthetic
+  always survives even when the diary moments push the prompt over.
+- The **moments are picked per call** from per-axis phrase pools, so
+  `w22_v1` and `w22_v2` end up with overlapping but different scene
+  combinations even on identical input data — the surprise property.
+- The **LoRA trigger phrase** comes from the worstimever LoRA card
+  (`DD-wte`). It's what flips SDXL-Turbo from default cartoon into
+  the deliberately-bad register.
 
 What works:
 - ✅ **하찮은 doodle register** (worstimever LoRA delivers — flat colour, thick black outlines, deliberately childlike)
