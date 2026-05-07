@@ -39,6 +39,27 @@ torch. With `torch-directml` on the Radeon, expect ~30-60 s. A modern phone
 NPU does the same workload in ~3-10 s — which is why on-device generation
 is suddenly realistic in 2026.
 
+### Style exploration: searching for the postcard aesthetic
+
+The original "intentionally bad doodle" prompt is now a saturated trend
+(ChatGPT shipped it as the official 낙서풍 template). For the actual
+postcard, we want something more emotional / artistic / unique.
+[scripts/style_explore.py](scripts/style_explore.py) renders one preset
+per row from [src/styles.py](src/styles.py), all from the same diary
+subject and seed:
+
+| preset | output | verdict |
+|---|---|---|
+| `watercolor_diary` | ![watercolor](samples/style_watercolor_diary.png) | **direct hit** — paper texture, pastel washes, journal-page composition all read as real watercolor |
+| `risograph_zine` | ![riso](samples/style_risograph_zine.png) | palette landed but the *texture* (halftone dots, grain, registration drift) is missing → blue-tinted photo, needs a riso LoRA |
+| `crayon_picturebook` | ![crayon](samples/style_crayon_picturebook.png) | warm composition but lacks crayon physicality → reads as digital illustration, also needs a LoRA |
+
+**Generalization**: SD 1.5 fine-tunes are strong on subject + lighting, weak
+on medium-specific *physicality*. Watercolor is the cheapest aesthetic that
+already works without LoRAs — that's the lead candidate for the postcard
+look. Tighter directions and LoRA stacks (riso, crayon, ink-and-wash,
+minhwa, ghibli) are next-step work.
+
 ## What this prototype answers
 
 1. Can a small Stable Diffusion model produce the "intentionally bad doodle"
