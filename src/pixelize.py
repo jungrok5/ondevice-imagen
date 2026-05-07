@@ -48,24 +48,27 @@ NES_PALETTE = [
 
 def pixelize(
     img: Image.Image,
-    grid: int = 64,
+    grid: int = 128,
     colors: int = 16,
+    output_size: int = 1024,
 ) -> Image.Image:
     """Force a pixel-perfect look on an SD output.
 
-    grid:    target small-image edge in pixels. 64 → each block is 8x8 in
-             the upscaled output. Smaller grid = chunkier pixels.
-    colors:  palette size after median-cut quantization. 16 reads as
-             "limited 16-color paint program".
+    grid:        target small-image edge in pixels. 128 ≈ a 16-bit RPG
+                 native resolution (e.g. Chrono Trigger ~256x224). Smaller
+                 grid = chunkier pixels.
+    colors:      palette size after median-cut quantization. 16 reads as
+                 "limited 16-color paint program".
+    output_size: edge length of the final upscaled PNG in pixels. 1024
+                 makes each block clearly visible on a HiDPI display.
     """
     src = img.convert("RGB")
-    w, h = src.size
 
     small = src.resize((grid, grid), Image.LANCZOS)
     quantized = small.quantize(colors=colors, method=Image.Quantize.MEDIANCUT)
     quantized = quantized.convert("RGB")
 
-    return quantized.resize((w, h), Image.NEAREST)
+    return quantized.resize((output_size, output_size), Image.NEAREST)
 
 
 def _palette_image(palette: list[tuple[int, int, int]]) -> Image.Image:
@@ -85,18 +88,18 @@ def _palette_image(palette: list[tuple[int, int, int]]) -> Image.Image:
 
 def pixelize_with_palette(
     img: Image.Image,
-    grid: int = 64,
+    grid: int = 128,
     palette: list[tuple[int, int, int]] | None = None,
+    output_size: int = 1024,
 ) -> Image.Image:
     """Pixelize and remap to a fixed palette.
 
     If palette is None, falls back to pixelize() with 16 median-cut colors.
     """
     if palette is None:
-        return pixelize(img, grid=grid, colors=16)
+        return pixelize(img, grid=grid, colors=16, output_size=output_size)
 
     src = img.convert("RGB")
-    w, h = src.size
 
     small = src.resize((grid, grid), Image.LANCZOS)
     quantized = small.quantize(
@@ -104,4 +107,4 @@ def pixelize_with_palette(
         dither=Image.Dither.NONE,
     ).convert("RGB")
 
-    return quantized.resize((w, h), Image.NEAREST)
+    return quantized.resize((output_size, output_size), Image.NEAREST)

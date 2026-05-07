@@ -113,7 +113,9 @@ def run_one(seed: int) -> dict:
     doodle_path = SAMPLES / f"random_w{seed}_doodle.png"
     doodle.save(doodle_path)
 
-    pixel = pixelize(doodle, grid=64, colors=16)
+    # Keep grid=64 (chunky) for the SD-Turbo doodle vibe but render the PNG
+    # at 1024 so it is properly visible.
+    pixel = pixelize(doodle, grid=64, colors=16, output_size=1024)
     pixel_path = SAMPLES / f"random_w{seed}_pixel.png"
     pixel.save(pixel_path)
 
