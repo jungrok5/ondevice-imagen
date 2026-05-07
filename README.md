@@ -10,7 +10,72 @@ that lets us try a checkpoint, look at the result, and decide whether it
 is worth carrying to mobile. The committed `samples/` images and the
 notes below are the actual research output.
 
-## v10 — actual product flow (current best)
+## Single-event flow — button press → prompt → image
+
+The actual product flow when the user presses the "draw this moment"
+button. Input is a single event captured at that instant, not a
+weekly aggregate.
+
+Mapping is **deterministic and inspectable** — every field becomes a
+specific phrase via small editable dictionaries in
+[src/event_prompt.py](src/event_prompt.py). User can read the
+breakdown and see exactly what their data turned into.
+
+### Input event (literal user example)
+
+| field | value |
+|---|---|
+| time | 19:00 |
+| weather | 맑음 |
+| date | 2026-12-25 |
+| country | 대한민국 |
+| city | 수원시 |
+| place | 광교포레스트 아파트 |
+
+### Field → phrase mapping
+
+| source | phrase injected |
+|---|---|
+| `time=19:00` | `evening dusk, lamps lit` |
+| `date=2026-12-25` (season) | `winter, bare branches` |
+| `date=2026-12-25` (special) | `Christmas day, fairy lights, festive` |
+| `weather=맑음` | `clear sky` |
+| `country=대한민국` | `Korean setting` |
+| `place` matches `아파트` | `tall apartment buildings` |
+| `place` matches `포레스트` | `forested area, tall pines` |
+
+### Final prompt sent to SDXL-Turbo
+
+```
+DD-wte artstyle, worst-im-ever cartoon doodle,
+ugly MS Paint doodle, white paper, black ink only, pixelated low-res,
+child scribble, naive crude drawing,
+evening dusk, lamps lit,
+winter, bare branches,
+Christmas day, fairy lights, festive,
+clear sky,
+Korean setting,
+tall apartment buildings,
+forested area, tall pines
+```
+
+### Generated image
+
+![](samples/event_xmas_19h.png)
+
+The doodle visibly reflects every field — purple dusk sky, lit
+apartment windows, snow on roofs, bare branches + evergreen pines, a
+Christmas tree with lights on the right. Each visual element traces
+back to a row in the table above. Driver:
+[scripts/match_user_event.py](scripts/match_user_event.py).
+
+### Editing the mapping
+
+Want a different translation for the same input? Edit the dicts at
+the top of `src/event_prompt.py` — they're small (~30 lines) and pure
+data. Rerun `match_user_event.py` to see the new result.
+
+## v10 — diary-aggregate flow (multiple events into one weekly postcard)
 
 The product spec, after iteration: feed diary text (time / weather /
 place) and get back an **unexpected scene drawn in the 하찮은
