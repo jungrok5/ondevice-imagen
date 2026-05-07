@@ -10,6 +10,51 @@ that lets us try a checkpoint, look at the result, and decide whether it
 is worth carrying to mobile. The committed `samples/` images and the
 notes below are the actual research output.
 
+## Commercial-OK base shootout (current top-of-stack)
+
+User picked worstimever + sdxl_mspaint_portraits as the two favourite
+style LoRAs but flagged that SDXL-Turbo's base license is non-commercial.
+Both candidate bases use the same SDXL architecture (so the chosen
+LoRAs stay compatible) and both are Open RAIL++ M (commercial-OK):
+
+| base | step / guidance | size |
+|---|---|---|
+| **SDXL 1.0 base** (`stabilityai/stable-diffusion-xl-base-1.0`) | 30 step / 7.0 | ~6.5 GB |
+| **SDXL Lightning** (`ByteDance/SDXL-Lightning`, 4-step LoRA over SDXL base) | 4 step / 0.0 | base + 394 MB LoRA |
+
+Same Christmas event input + seed across the four cells:
+
+| | worstimever | mspaint_portraits |
+|---|---|---|
+| **SDXL 1.0 base 30-step** | ![](samples/base_compare_base_30step_worstimever.png) | ![](samples/base_compare_base_30step_mspaint_portraits.png) |
+| **SDXL Lightning 4-step** | ![](samples/base_compare_lightning_4step_worstimever.png) | ![](samples/base_compare_lightning_4step_mspaint_portraits.png) |
+
+Reads:
+
+- **base 30-step + worstimever** — over-refined, lost scene coherence,
+  the LoRA's "deliberately wonky" character washes out under full denoise.
+- **base 30-step + mspaint_portraits** — clean apartment + Christmas tree
+  illustration. Polished, not 한심함.
+- **Lightning 4-step + worstimever** — rough outlines + scribble
+  strokes + tree visible. Closest to the v10 trend register, and the
+  30-step polish problem is gone because Lightning's denoise budget is
+  shorter.
+- **Lightning 4-step + mspaint_portraits** — string lights + tree +
+  dusk sky. Middle ground, viable alternate visual mode.
+
+### Verdict — new commercial-OK default
+
+**SDXL 1.0 base + SDXL Lightning 4-step LoRA + worstimever style LoRA**
+- License: Open RAIL++ M everywhere → commercial product OK
+- Speed regime: 4-step (same as SDXL-Turbo) → mobile NPU 3-10 s
+- Trend register: matches v10 vibe (one of which we already shipped)
+- Mobile path: bake all LoRAs into one merged checkpoint, convert via
+  `apple/ml-stable-diffusion` to `.mlpackage`. ~3 GB after 6-bit
+  quantization. iPhone 14 Pro+ / Snapdragon 8 Gen 2+.
+
+Driver: [scripts/compare_bases.py](scripts/compare_bases.py) — drop
+new bases or stacked LoRAs in, rerun.
+
 ## LoRA shootout (same Christmas event, 4 SDXL LoRAs)
 
 User picked 6 candidate LoRAs from Civitai. Two (`pokemon-trainer-sprite`,
