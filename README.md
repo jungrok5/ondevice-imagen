@@ -22,6 +22,45 @@ notes below are the actual research output.
 That gap matters because everything below is targeting "what runs on a
 phone in the background while charging" — slow on PC ≠ slow on device.
 
+## Random-weeks + true pixel art
+
+The original prompt's "픽셀 하나하나 보이는 저화질" line is asking for
+*actual* pixel-perfect output. SD outputs look pixel-ish but ship with
+anti-aliased edges and a full RGB palette. The fix is post-process:
+[src/pixelize.py](src/pixelize.py) downsamples to 64×64, median-cut
+quantises to 16 colors, then upscales nearest-neighbor — every 8×8
+block becomes a single solid pixel.
+
+[scripts/random_weeks_doodle.py](scripts/random_weeks_doodle.py)
+synthesises four randomised weekly diaries (different water counts,
+weathers, places), runs each through the existing prompt builder +
+collage + SD-Turbo img2img pipeline, and applies pixelize. ~30 s per
+seed on cached CPU.
+
+| seed | doodle (raw SD) | pixel-perfect |
+|---|---|---|
+| 11 (windy) | ![](samples/random_w11_doodle.png) | ![](samples/random_w11_pixel.png) |
+| 22 (cloudy) | ![](samples/random_w22_doodle.png) | ![](samples/random_w22_pixel.png) |
+| 33 (snowy) | ![](samples/random_w33_doodle.png) | ![](samples/random_w33_pixel.png) |
+| 44 (windy) | ![](samples/random_w44_doodle.png) | ![](samples/random_w44_pixel.png) |
+
+(Full table with collages and per-seed prompts in
+[samples/random_weeks.md](samples/random_weeks.md).)
+
+**Two findings.**
+
+1. The prompt builder really does respond to the data — different
+   RNG seeds yield different scenes (kettle + cabinet, city skyline,
+   bookshelves with stars, bicycle + plants). The water cup count
+   always saturates at 8 because daily totals exceed the prompt cap;
+   that ceiling is something to widen if we want cup count itself to
+   feel data-driven.
+2. SD-Turbo on this prompt produces mostly black ink on white. When
+   pixelize quantises to 16 colors, the palette collapses to grayscale
+   and the result reads as a *Game Boy / vintage calculator screen*
+   instead of MS Paint. Arguably stronger "pixel-perfect" energy than
+   the original prompt asked for — a happy accident worth keeping.
+
 ## Speed dial: SD-Turbo (1-4 steps)
 
 SD-Turbo is the "fast" end. Single-step generation, ~1.4 GB model.
