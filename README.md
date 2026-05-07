@@ -60,42 +60,66 @@ without paying for SD inference — useful for tuning the rotation logic.
 
 ### Closing the gap to the GPT-4o '하찮은 프롬프트' look
 
-The original viral GPT-4o output is 1-bit mouse-drawn MS Paint: hard
-edges, no anti-aliasing, white paper, distorted-but-recognizable
-shapes. SD-Turbo gets the *shapes* right but ships anti-aliased
-lines and a full RGB palette. The fix is a post-process —
-[src/kasun_filter.py](src/kasun_filter.py) — that forces:
+After downloading the actual viral references (the Sam Altman
+heraldcorp doodle and the OpenAI-logo doodle from `@openai`'s
+Instagram profile, both saved under `samples/reference/`), it became
+clear the trend isn't one aesthetic but two:
 
-1. Lanczos downsample to a chunky grid (32-64 px)
-2. Convert to grayscale, autocontrast, auto-invert if dark-dominated,
-   then bilevel-threshold (Otsu picks the cutoff per image)
-3. Nearest-neighbor upscale to 1024×1024 — every block a hard pixel
+- **단색선 (line-only)**: pen lines on white paper, no fill at all.
+  Closest match to the OpenAI-logo doodle.
+- **컬러 낙서풍 (colour flat-fill)**: 5-6 flat colours bounded by thin
+  black outlines, white background, visible pixels. Closest match to
+  the Sam Altman heraldcorp doodle.
 
-Optional 1-3 px per-row horizontal jitter for the "extreme" preset
-fakes mouse-tremor lines.
+[src/kasun_filter.py](src/kasun_filter.py) splits accordingly into
+`kasun_line()` and `kasun_color()`. Both stack the same pre-process —
+MedianFilter to flatten SD's gradient noise into solid regions, plus a
+saturation boost so the palette picks vivid hues — and then diverge:
 
-The same SD-Turbo doodle, four kasun intensities applied
-([scripts/kasun_demo.py](scripts/kasun_demo.py)):
+| step | kasun_line | kasun_color |
+|---|---|---|
+| 1. pre-smooth | MedianFilter(5) | MedianFilter(5) |
+| 2. saturate | — | ImageEnhance.Color × 1.6 |
+| 3. downsample | 128×128 LANCZOS | 128×128 LANCZOS |
+| 4. quantize | (skip) | FASTOCTREE → 6 colours |
+| 5. edge detect | FIND_EDGES on greyscale | FIND_EDGES on quantized |
+| 6. compose | threshold → black on white | composite black edges over fill |
+| 7. upscale | 1024×1024 NEAREST | 1024×1024 NEAREST |
 
-| source | light | medium | heavy | extreme + jitter |
-|---|---|---|---|---|
-| ![](samples/random_w11_doodle.png) | ![](samples/kasun_light_random_w11_doodle.png) | ![](samples/kasun_medium_random_w11_doodle.png) | ![](samples/kasun_heavy_random_w11_doodle.png) | ![](samples/kasun_extreme_random_w11_doodle.png) |
-| ![](samples/viral_friends_mom_portrait.png) | ![](samples/kasun_light_viral_friends_mom_portrait.png) | ![](samples/kasun_medium_viral_friends_mom_portrait.png) | ![](samples/kasun_heavy_viral_friends_mom_portrait.png) | ![](samples/kasun_extreme_viral_friends_mom_portrait.png) |
+**Round-trip sanity check** — feed the actual heraldcorp Sam Altman
+reference back through both filters:
 
-`light` is the closest match to the GPT-4o aesthetic — recognizable
-scene, hard pixels, white paper. Heavier presets dissolve into
-abstract bitmap glyphs which is its own thing but loses the original
-"earnestly drawing the photo" energy.
+| reference | → kasun_line | → kasun_color |
+|---|---|---|
+| ![](samples/reference/ref_heraldcorp_main.png) | ![](samples/v2_line_ref_heraldcorp_main.png) | ![](samples/v2_color_ref_heraldcorp_main.png) |
 
-Full ladder at [samples/kasun_grid.md](samples/kasun_grid.md).
+`kasun_color` reproduces the bright-blue-suit + tan-skin + brown-hair
++ white-BG palette of the original; `kasun_line` reduces the same
+input to a clean pen sketch that still reads as Sam Altman. Both
+match the trend's actual visual register, not the 1-bit Game Boy
+aesthetic the v1 filter was producing.
 
-**Mobile note**: every operation in `kasun_filter` is plain pixel ops
-(downsample, threshold, palette lookup, nearest upscale). Maps 1:1 to
-iOS Core Image and Android Bitmap APIs. *No extra ML model* — the
-filter stacks on top of the same SD-Turbo Core ML / ONNX pipeline
-already documented for mobile. The only on-device dependency is
-SD-Turbo itself, which is already pre-converted on `coreml-community`
-and exportable via `optimum-cli`.
+**Applied to our SD-Turbo output**:
+
+| SD source | → kasun_line | → kasun_color |
+|---|---|---|
+| ![](samples/random_w11_doodle.png) | ![](samples/v2_line_random_w11_doodle.png) | ![](samples/v2_color_random_w11_doodle.png) |
+| ![](samples/random_w11_txt2img.png) | ![](samples/v2_line_random_w11_txt2img.png) | ![](samples/v2_color_random_w11_txt2img.png) |
+| ![](samples/viral_friends_mom_portrait.png) | ![](samples/v2_line_viral_friends_mom_portrait.png) | ![](samples/v2_color_viral_friends_mom_portrait.png) |
+| ![](samples/quality_realistic.png) | ![](samples/v2_line_quality_realistic.png) | ![](samples/v2_color_quality_realistic.png) |
+
+Full grid at [samples/kasun_v2_grid.md](samples/kasun_v2_grid.md).
+
+**Mobile note**: every operation here is plain pixel work —
+MedianFilter, saturation enhance, Lanczos downsample, FASTOCTREE
+quantize, FIND_EDGES, threshold, composite, nearest upscale. Each
+maps 1:1 to iOS Core Image filters and Android Bitmap APIs. **No
+extra ML model on top of SD-Turbo.** The on-device flow is: SD-Turbo
+generates the base, kasun_line or kasun_color finishes it; same Core
+ML / ONNX pipeline already documented for mobile.
+
+(The v1 1-bit bilevel filter is still callable as `kasun_bilevel` —
+it's a separate Game-Boy-style dial, not the trend look.)
 
 ### Same data → different result every time
 
