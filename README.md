@@ -57,10 +57,48 @@ proportions, naive amateur energy.
 
 | version | approach | failure mode |
 |---|---|---|
-| v1 | bilevel kasun on plain SD-Turbo doodle | wrong target — produced 1-bit Game Boy bitmap, not the trend's flat-colour look |
-| v2 | colour kasun on plain SD-Turbo doodle | aesthetic close but BG was grey/dark, not white paper |
-| v3 | txt2img + kasun_color w/ flood-fill | white BG achieved but SD invented a stranger holding a plant — lost photo identity |
-| v4 | img2img(s=0.65) + rembg + kasun_color | photo identity preserved AND white BG (current best) |
+| v1 | bilevel kasun on plain SD-Turbo doodle | 1-bit Game Boy bitmap, wrong target |
+| v2 | colour kasun | aesthetic close but BG dark, not white paper |
+| v3 | txt2img + kasun_color w/ flood-fill | white BG but SD invented a stranger |
+| v4 | img2img(0.65) + rembg + kasun_color | identity preserved + white BG, but reads as 8-bit RPG sprite — too pixel-perfect, not the wobbly mouse-drawn target |
+| v5 | minimal post-process, prompt-driven | SD-Turbo can't natively do wobbly hand-drawn |
+| v6 | cv2 stylize / pencilSketch on SD output | closer hand-drawn feel, but no single filter hits all of (thick lines + pastel + wobble) |
+
+### v5 / v6 exploration (current)
+
+After v4 the user pointed out the result reads as a clean pixel sprite,
+not the wobbly mouse-drawn ChatGPT trend. Two pivots:
+
+**v5** — strip post-processing, lean on SD-Turbo prompt:
+
+| strength | image |
+|---|---|
+| 0.55 | ![](samples/v5_set1_sd_s55.png) |
+| 0.70 | ![](samples/v5_set1_sd_s70.png) |
+| 0.85 | ![](samples/v5_set1_sd_s85.png) |
+
+Reads: SD-Turbo doesn't natively produce the shaky mouse-drawn style
+regardless of strength.
+
+**v6** — OpenCV's purpose-built artistic filters on the SD output:
+
+| filter | image | reads |
+|---|---|---|
+| stylize_60_045 | ![](samples/v6_set1_stylize_60_045.png) | thick cartoon outlines, saturated colour, clean (not wobbly) |
+| stylize_150_07 | ![](samples/v6_set1_stylize_150_07.png) | same family, smoother |
+| pencil_30_05_005 | ![](samples/v6_set1_pencil_30_05_005.png) | loose pencil + watercolour wash, white space, hand-drawn feel ✓ |
+| pencil_60_07_005 | ![](samples/v6_set1_pencil_60_07_005.png) | too desaturated |
+
+(Full grids: [match_v5_grid.md](samples/match_v5_grid.md),
+[match_v6_grid.md](samples/match_v6_grid.md).)
+
+The closest single output is `pencil_30_05_005` (best hand-drawn feel)
+or `stylize_60_045` (thick outlines), but neither hits all of the
+trend's defining qualities at once: thick black outlines + flat
+pastel colour fill + visible mouse-tremor wobble. Next step (v7) is a
+combined filter that takes thick edges from stylize, pastel fill from
+desaturated stylize, and adds random per-row pixel jitter to fake
+mouse-tremor.
 
 ### Mobile note
 
