@@ -13,50 +13,64 @@ notes below are the actual research output.
 ## 하찮은 프롬프트 — user-tested round (latest)
 
 User uploaded an actual ChatGPT 하찮은 프롬프트 input/output pair via
-GitHub. These are the closest-match results the local pipeline produces
-right now.
+GitHub. The pipeline now matches the trend's defining property —
+**the input photo's subject is recognisable in the output**, not just
+"some person doodled".
 
-| | image |
+### v4 pipeline (current best)
+
+```
+photo -> SD-Turbo img2img (strength 0.65, doodle prompt)
+      -> rembg (U2-Net foreground extraction, ~25 MB, mobile-portable)
+      -> composite onto white
+      -> kasun_color (flat colour fill + thick black outlines)
+```
+
+| stage | image |
 |---|---|
-| 1. **Original photo** (uploaded by user to ChatGPT) | ![](samples/reference/user_test/line/set1_input.png) |
-| 2. **ChatGPT 하찮은 result** (target / ground truth) | ![](samples/reference/user_test/line/set1_output.png) |
-| 3. **Our SD-Turbo txt2img output** (intermediate) | ![](samples/match_set1_sd.png) |
-| 4. **Our pipeline final** — txt2img + `kasun_color` w/ flood-fill BG | ![](samples/match_set1_kasun_color.png) |
-| 5. **Line-only variant** — `kasun_line` on the same SD output | ![](samples/match_set1_kasun_line.png) |
+| 0. **Input photo** (uploaded to ChatGPT by user) | ![](samples/reference/user_test/line/set1_input.png) |
+| 1. SD-Turbo img2img — keeps photo pose, redraws as cartoon | ![](samples/v4_set1_sd.png) |
+| 2. + rembg — subject extracted onto white | ![](samples/v4_set1_cut.png) |
+| 3. + kasun_color — final 하찮은 finish | ![](samples/v4_set1_kasun_color.png) |
+| **target — ChatGPT 하찮은 result** | ![](samples/reference/user_test/line/set1_output.png) |
 
-### What lines up vs. what doesn't
+### What now matches
 
-✅ **Aesthetic registers match**: flat colour fill, thick black outlines,
-visible chunky pixels, near-white paper background, deliberately wonky
+✅ **Same person recognisable**: dark hair, peach skin, dark cardigan,
+sitting pose holding the coffee cup — same as the photo, not a
+hallucinated stranger.
+✅ **Aesthetic registers**: flat colour fill, thick black outlines,
+visible chunky pixels, white paper background, deliberately wonky
 proportions, naive amateur energy.
 
-❌ **Photo layout is lost**: ChatGPT preserves the cafe scene (man at
-table, coffee cup, plant on left, hanging lights). Our `txt2img` path
-hallucinates a different composition (man holding a plant pot) because
-SD-Turbo never saw the photo. `img2img` paths preserve the layout but
-keep too much cafe-interior scenery — pure-pixel BG isolation can't
-cleanly separate subject from BG without a real segmentation step.
+### Remaining gaps (next iterations)
 
-### Why the gap exists
+- ChatGPT keeps a *little* surrounding scene context (small plant,
+  hanging lights as faint side detail). rembg cuts everything except
+  the subject, so our v4 has a fully empty BG. Could be fixed by a
+  looser alpha-matting or a "subject + nearest neighbours" pass.
+- Face has slightly too much pixel noise from kasun's 8-colour
+  palette over the SD output's gradient skin shading. Tuning kasun's
+  `smooth` parameter higher should clean this up.
 
-ChatGPT does **(1) understand photo → (2) abstract scene → (3) redraw
-in doodle style** as a single end-to-end model step. We do it in two
-stages: SD-Turbo for the doodle, kasun_color for the finish. The
-"abstract the scene" middle step is the one the GPT-4o model performs
-implicitly that our pipeline doesn't have an equivalent for.
+### Why earlier attempts didn't work
 
-### Two paths from here
+| version | approach | failure mode |
+|---|---|---|
+| v1 | bilevel kasun on plain SD-Turbo doodle | wrong target — produced 1-bit Game Boy bitmap, not the trend's flat-colour look |
+| v2 | colour kasun on plain SD-Turbo doodle | aesthetic close but BG was grey/dark, not white paper |
+| v3 | txt2img + kasun_color w/ flood-fill | white BG achieved but SD invented a stranger holding a plant — lost photo identity |
+| v4 | img2img(s=0.65) + rembg + kasun_color | photo identity preserved AND white BG (current best) |
 
-1. **Accept layout drift, ship the txt2img path**: the diary postcard
-   product *generates from text data anyway*, so photo fidelity isn't
-   actually a requirement. Result quality matches the trend visually.
-2. **Add a tiny segmentation step** (e.g. rembg, ~25 MB on mobile)
-   between SD and kasun, to isolate the subject so we can keep the
-   photo-faithful img2img path AND the white BG.
+### Mobile note
 
-Driver: [scripts/match_user_ref.py](scripts/match_user_ref.py).
-Filter: [src/kasun_filter.py](src/kasun_filter.py) `kasun_color` with
-`bg_to_white=True`.
+rembg ships as `u2net.onnx`, ~25 MB. Runs on iOS Core ML and Android
+NNAPI alongside the SD-Turbo Core ML / ONNX pipeline. The whole v4
+flow is two ML inferences (SD-Turbo + rembg) plus pure pixel ops
+(kasun_color). Same on-device feasibility envelope as before.
+
+Driver: [scripts/match_user_ref_v4.py](scripts/match_user_ref_v4.py).
+Filter: [src/kasun_filter.py](src/kasun_filter.py) `kasun_color`.
 
 ## Hardware envelope of this PC
 
