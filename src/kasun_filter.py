@@ -36,7 +36,7 @@ from __future__ import annotations
 
 import random
 
-from PIL import Image, ImageEnhance, ImageFilter, ImageOps
+from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageOps
 
 
 # ---------------------------------------------------------------------------
@@ -95,6 +95,8 @@ def kasun_color(
     smooth: int = 5,
     saturation: float = 1.6,
     output_size: int = 1024,
+    bg_to_white: bool = True,
+    bg_dark_threshold: int = 220,
 ) -> Image.Image:
     """Flat colour fill + thin black outline doodle (the Sam Altman
     heraldcorp aesthetic).
@@ -126,6 +128,15 @@ def kasun_color(
         colors=colors, method=Image.Quantize.FASTOCTREE
     ).convert("RGB")
 
+    # Optional: detect the dominant background colour and replace it with
+    # white. ChatGPT's 하찮은 result always has a clean white paper BG,
+    # but SD-Turbo natively generates full scenes. This step approximates
+    # the abstraction step the GPT-4o model performs internally.
+    if bg_to_white:
+        quantized = _swap_dominant_dark_with_white(
+            quantized, bg_dark_threshold
+        )
+
     edges = quantized.convert("L").filter(ImageFilter.FIND_EDGES)
     edge_mask = edges.point(lambda p: 255 if p > line_threshold else 0, mode="L")
 
@@ -136,6 +147,51 @@ def kasun_color(
     composite = Image.composite(black, quantized, edge_mask)
 
     return composite.resize((output_size, output_size), Image.NEAREST)
+
+
+def _swap_dominant_dark_with_white(
+    img: Image.Image, dark_threshold: int = 220
+) -> Image.Image:
+    """Replace only the connected background region with white.
+
+    Flood-fills from each of the four corners up to a small colour
+    tolerance. So if the man's hair happens to share a quantize bucket
+    with the cafe BG, only the BG (which is reachable from the corners)
+    becomes white — the hair stays black because it is an isolated
+    island of that colour.
+    """
+    rgb = img.convert("RGB").copy()
+    w, h = rgb.size
+
+    # Seed flood-fill from many points along all four edges. Every region
+    # connected to any edge gets converted to white. Anything fully
+    # surrounded by other regions (the man, his coffee, hair, etc.) is
+    # NOT reachable from the edge and stays untouched.
+    step = max(1, min(w, h) // 12)
+    seeds: list[tuple[int, int]] = []
+    for x in range(0, w, step):
+        seeds.append((x, 0))
+        seeds.append((x, h - 1))
+    for y in range(0, h, step):
+        seeds.append((0, y))
+        seeds.append((w - 1, y))
+
+    for x, y in seeds:
+        px = rgb.getpixel((x, y))
+        # Only flood from pixels that aren't already white-ish — saves work.
+        if sum(px) >= dark_threshold:
+            continue
+        try:
+            ImageDraw.floodfill(
+                rgb,
+                xy=(x, y),
+                value=(255, 255, 255),
+                thresh=20,
+            )
+        except Exception:
+            pass
+
+    return rgb
 
 
 # ---------------------------------------------------------------------------
