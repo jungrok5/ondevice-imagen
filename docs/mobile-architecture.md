@@ -80,6 +80,69 @@ pipeline instead of two.
 - **Privacy**: GPS coordinates reverse-geocoded to a POI name on-device when
   possible, then the raw lat/lng is dropped before the row is committed.
 
+## Background scheduling (the actual user flow)
+
+The user only wants a postcard once a week, so the generation job runs as
+opportunistic background work — no "tap and wait" UX. Both platforms have
+APIs designed for exactly this shape of work, which means slow inference is
+*fine*: the device is plugged in, locked, and idle anyway.
+
+### iOS — `BGProcessingTask`
+
+```swift
+let req = BGProcessingTaskRequest(identifier: "ai.localrnd.weeklyPostcard")
+req.requiresExternalPower       = true   // only while charging
+req.requiresNetworkConnectivity = false  // fully offline
+req.earliestBeginDate           = nextSundayMorning
+BGTaskScheduler.shared.submit(req)
+```
+
+- iOS 13+. The system schedules opportunistically — typically while
+  charging and locked. No exact time guarantee.
+- Multi-minute jobs are explicitly supported (it is the documented use
+  case for ML model training and photo-library indexing).
+- ANE-backed SD 1.5 finishes in ~30-60 s — well within any background
+  window, with battery headroom to spare.
+- User-side gotcha: if Background App Refresh is disabled for the app,
+  `BGProcessingTask` never fires. UI must communicate this gracefully.
+
+### Android — WorkManager + Foreground Service
+
+```kotlin
+val req = OneTimeWorkRequestBuilder<PostcardWorker>()
+    .setConstraints(Constraints.Builder()
+        .setRequiresCharging(true)
+        .setRequiresBatteryNotLow(true)
+        .setRequiresDeviceIdle(true)
+        .build())
+    .setInitialDelay(7, TimeUnit.DAYS)
+    .build()
+WorkManager.getInstance(ctx).enqueue(req)
+```
+
+- WorkManager negotiates Doze and battery-optimization policy for us.
+- Inference longer than ~5 min must be promoted to a Foreground Service.
+  Android 15 added a `mediaProcessing` foreground-service type fitting
+  exactly this case; pre-15, use `dataSync`.
+- Notification is mandatory while the FG service is running ("Drawing
+  this week's postcard…").
+- Even on devices without NPU, a CPU fallback of several minutes is fine
+  here — the constraint stack guarantees we are charging and idle.
+
+### Implication for inference budget
+
+Because the work runs in the background under charging + idle, the
+acceptable inference time is *minutes*, not seconds. That widens the
+choice of models meaningfully:
+
+- iPhone 14+ ANE → SDXL 1024² is feasible at ~30-60 s.
+- Snapdragon 8 Gen 2 NPU → MediaPipe LCM-SD1.5 at ~10 s.
+- Older devices (CPU fallback) → SD 1.5 at 4-8 min — still acceptable.
+
+UX flow: user opens the app on Sunday, finds last week's postcard already
+generated. No spinner, no wait — the work happened while the phone was
+charging on the nightstand.
+
 ## Open questions to validate via the PC prototype
 
 1. Does the prompt actually produce the desired aesthetic, or do we need a
