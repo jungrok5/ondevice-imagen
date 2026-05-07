@@ -18,6 +18,7 @@ samples/viral.log
 samples/drill.log
 samples/random.log
 samples/random_t2i.log
+samples/variety.log
 .cache/
 models/
 hf_cache/
