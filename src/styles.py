@@ -97,6 +97,74 @@ GHIBLI_PAINTERLY = StylePreset(
 )
 
 
+RENAISSANCE_OIL = StylePreset(
+    name="renaissance_oil",
+    positive_prefix=(
+        "dramatic Italian Renaissance oil painting, chiaroscuro lighting, "
+        "deep shadows, golden gilded frame, museum gallery atmosphere, "
+        "sfumato technique, rich earth pigments"
+    ),
+    negative_extra=(
+        "modern, digital, photograph, anime, vector, flat"
+    ),
+)
+
+
+HOTEL_ART_70S = StylePreset(
+    name="hotel_art_70s",
+    positive_prefix=(
+        "amateur 1970s motel room oil painting on stretched canvas, "
+        "beige and burnt sienna and avocado green palette, slightly faded, "
+        "stiff and out of proportion, mass-produced thrift-store sad kitsch art, "
+        "tacky vintage decor"
+    ),
+    negative_extra=(
+        "professional, sharp, modern, digital, photorealistic, anime"
+    ),
+)
+
+
+EMBROIDERED_SAMPLER = StylePreset(
+    name="embroidered_sampler",
+    positive_prefix=(
+        "cross-stitch embroidered sampler on cream linen, visible uneven thread "
+        "stitches, slightly puckered fabric, framed in oak, "
+        "earnest amateur grandmother handcraft, soft and warm"
+    ),
+    negative_extra=(
+        "photograph, painting, digital, smooth, professional, perfect"
+    ),
+)
+
+
+FRIENDS_MOM_PORTRAIT = StylePreset(
+    name="friends_mom_portrait",
+    positive_prefix=(
+        "amateur pencil and colored pencil drawing made by a sincere "
+        "suburban mom in 2003, soft graphite shading, earnest but slightly "
+        "off-proportion, drawn from memory in a sketchbook on the kitchen "
+        "table, kind and well-meaning"
+    ),
+    negative_extra=(
+        "professional, polished, anatomy correct, sharp, digital, "
+        "photograph, anime, perfect"
+    ),
+)
+
+
+HALF_REMEMBERED_FILM = StylePreset(
+    name="half_remembered_film",
+    positive_prefix=(
+        "a hazy still from a half-remembered foreign film, soft 16mm grain, "
+        "muted nostalgic palette, slightly out of focus, melancholic atmosphere, "
+        "as if recalled from a dream years later"
+    ),
+    negative_extra=(
+        "sharp, hd, 4k, digital, vector, anime, illustration"
+    ),
+)
+
+
 PRESETS: dict[str, StylePreset] = {
     p.name: p
     for p in [
@@ -106,6 +174,11 @@ PRESETS: dict[str, StylePreset] = {
         INK_AND_WASH_JOURNAL,
         MINHWA_HANJI,
         GHIBLI_PAINTERLY,
+        RENAISSANCE_OIL,
+        HOTEL_ART_70S,
+        EMBROIDERED_SAMPLER,
+        FRIENDS_MOM_PORTRAIT,
+        HALF_REMEMBERED_FILM,
     ]
 }
 
