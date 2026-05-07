@@ -61,6 +61,45 @@ seed on cached CPU.
    instead of MS Paint. Arguably stronger "pixel-perfect" energy than
    the original prompt asked for — a happy accident worth keeping.
 
+### Pixelize over colorful sources: 16-bit cutscene aesthetic
+
+Pixelize on monochrome SD-Turbo collapses to grayscale. Pixelize on a
+*colorful* SD output is a different beast — the 16-color median-cut
+keeps the source palette and the result reads as a specific era of
+dot illustration (Final Fantasy / Chrono Trigger 16-bit RPG cutscenes).
+
+[scripts/pixelize_existing.py](scripts/pixelize_existing.py) applies
+two palettes to seven existing samples — no SD inference, ~1 s total:
+
+- `pixel16_*` — 64×64 grid, 16-color median-cut chosen per image
+- `pixelgb_*` — 64×64 grid, fixed 4-color Game Boy DMG-01 palette
+
+| source | 16-color (vibrant retro) | Game Boy (1989 DMG) |
+|---|---|---|
+| ![](samples/drill_mom_korean_living_room.png) | ![](samples/pixel16_drill_mom_korean_living_room.png) | ![](samples/pixelgb_drill_mom_korean_living_room.png) |
+| ![](samples/viral_hotel_art_70s.png) | ![](samples/pixel16_viral_hotel_art_70s.png) | ![](samples/pixelgb_viral_hotel_art_70s.png) |
+| ![](samples/viral_friends_mom_portrait.png) | ![](samples/pixel16_viral_friends_mom_portrait.png) | ![](samples/pixelgb_viral_friends_mom_portrait.png) |
+| ![](samples/quality_anime.png) | ![](samples/pixel16_quality_anime.png) | ![](samples/pixelgb_quality_anime.png) |
+| ![](samples/style_watercolor_diary.png) | ![](samples/pixel16_style_watercolor_diary.png) | ![](samples/pixelgb_style_watercolor_diary.png) |
+
+(Full table at [samples/pixelize_grid.md](samples/pixelize_grid.md).)
+
+**Two findings.**
+
+1. The strongest result is `pixel16_drill_mom_korean_living_room`. The
+   round-2 winner was already an earnest-amateur Korean-grandma frame;
+   the pixelize pass stacks a *second* nostalgia register (1990s pixel
+   art) on top of the first (1980s living-room frame), and the two
+   reinforce each other instead of competing. This is now the strongest
+   single candidate in the repo.
+2. Pixelize works best on flat backgrounds with saturated palettes —
+   exactly what 16-bit games used. `viral_hotel_art_70s` is the second
+   strongest because its avocado-green wall + yellow frame + red shirt
+   match what an SNES illustrator would have actually drawn.
+
+The Game Boy 4-color palette is a separate dial: stronger nostalgia
+hit, less subject fidelity. Best on high-contrast portrait subjects.
+
 ## Speed dial: SD-Turbo (1-4 steps)
 
 SD-Turbo is the "fast" end. Single-step generation, ~1.4 GB model.
