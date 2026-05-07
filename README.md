@@ -58,6 +58,72 @@ Four reference seeds, each engineered to fire a different axis:
 `scripts/dump_random_prompts.py` prints the full prompts and scores
 without paying for SD inference — useful for tuning the rotation logic.
 
+### Closing the gap to the GPT-4o '하찮은 프롬프트' look
+
+The original viral GPT-4o output is 1-bit mouse-drawn MS Paint: hard
+edges, no anti-aliasing, white paper, distorted-but-recognizable
+shapes. SD-Turbo gets the *shapes* right but ships anti-aliased
+lines and a full RGB palette. The fix is a post-process —
+[src/kasun_filter.py](src/kasun_filter.py) — that forces:
+
+1. Lanczos downsample to a chunky grid (32-64 px)
+2. Convert to grayscale, autocontrast, auto-invert if dark-dominated,
+   then bilevel-threshold (Otsu picks the cutoff per image)
+3. Nearest-neighbor upscale to 1024×1024 — every block a hard pixel
+
+Optional 1-3 px per-row horizontal jitter for the "extreme" preset
+fakes mouse-tremor lines.
+
+The same SD-Turbo doodle, four kasun intensities applied
+([scripts/kasun_demo.py](scripts/kasun_demo.py)):
+
+| source | light | medium | heavy | extreme + jitter |
+|---|---|---|---|---|
+| ![](samples/random_w11_doodle.png) | ![](samples/kasun_light_random_w11_doodle.png) | ![](samples/kasun_medium_random_w11_doodle.png) | ![](samples/kasun_heavy_random_w11_doodle.png) | ![](samples/kasun_extreme_random_w11_doodle.png) |
+| ![](samples/viral_friends_mom_portrait.png) | ![](samples/kasun_light_viral_friends_mom_portrait.png) | ![](samples/kasun_medium_viral_friends_mom_portrait.png) | ![](samples/kasun_heavy_viral_friends_mom_portrait.png) | ![](samples/kasun_extreme_viral_friends_mom_portrait.png) |
+
+`light` is the closest match to the GPT-4o aesthetic — recognizable
+scene, hard pixels, white paper. Heavier presets dissolve into
+abstract bitmap glyphs which is its own thing but loses the original
+"earnestly drawing the photo" energy.
+
+Full ladder at [samples/kasun_grid.md](samples/kasun_grid.md).
+
+**Mobile note**: every operation in `kasun_filter` is plain pixel ops
+(downsample, threshold, palette lookup, nearest upscale). Maps 1:1 to
+iOS Core Image and Android Bitmap APIs. *No extra ML model* — the
+filter stacks on top of the same SD-Turbo Core ML / ONNX pipeline
+already documented for mobile. The only on-device dependency is
+SD-Turbo itself, which is already pre-converted on `coreml-community`
+and exportable via `optimum-cli`.
+
+### Same data → different result every time
+
+In production the user's weekly data is often similar (same workplace,
+similar weather patterns, regular drinking times). If the postcard is
+deterministic, every Sunday morning gives the same picture and the
+surprise dies. The pipeline therefore runs *without* fixing any RNG by
+default — phrase pool selection in `prompt_builder.build()` and SD
+init noise both vary per call.
+
+[scripts/same_data_variety.py](scripts/same_data_variety.py) holds
+data fixed (seed 22 = place_cafe shape) and runs the pipeline four
+times to demonstrate the spread. The protagonist axis stays the same
+(it's a data property), but moments and image vary call-to-call:
+
+| variant | raw txt2img | kasun (1-bit) | pixel (16-color) |
+|---|---|---|---|
+| v1 (cafe + steam + afternoon sun) | ![](samples/variety_w22_v1.png) | ![](samples/variety_w22_v1_kasun.png) | ![](samples/variety_w22_v1_pixel.png) |
+| v2 (marble counter + espresso + morning) | ![](samples/variety_w22_v2.png) | ![](samples/variety_w22_v2_kasun.png) | ![](samples/variety_w22_v2_pixel.png) |
+| v3 (counter + park bench + desk lamp) | ![](samples/variety_w22_v3.png) | ![](samples/variety_w22_v3_kasun.png) | ![](samples/variety_w22_v3_pixel.png) |
+| v4 (counter + park bench + evening) | ![](samples/variety_w22_v4.png) | ![](samples/variety_w22_v4_kasun.png) | ![](samples/variety_w22_v4_pixel.png) |
+
+So the design contract is: **data → same week's protagonist axis;
+each generation → a fresh phrasing and a fresh SD seed**. The user
+opens the app, looks at last week's postcard, and gets a recognizable
+"a week of cafe visits" feeling rendered in a way they have never
+seen before.
+
 ### True pixel art via post-process
 
 The original prompt's "픽셀 하나하나 보이는 저화질" line is asking for
