@@ -1,6 +1,6 @@
 # LoRA shootout — same event, 4 LoRAs
 
-Input event: 19:00 / 맑음 / 2026-12-25 / 대한민국 수원시 광교포레스트 아파트
+Input event: 19:00 / 맑음 / 2026-12-25 / 대한민국 서울시 무궁화 아파트
 
 Data phrases injected: `evening dusk, lamps lit, winter, bare branches, Christmas day, fairy lights, festive, clear sky, Korean setting, tall apartment buildings, forested area, tall pines`
 

@@ -5,7 +5,7 @@ regimes — full 30-step base inference vs SDXL Lightning
 (loaded as a LoRA over the same base, 4 step). Two style LoRAs
 stacked on top of each.
 
-Input event: 19:00 / 맑음 / 2026-12-25 / 광교포레스트 아파트  
+Input event: 19:00 / 맑음 / 2026-12-25 / 무궁화 아파트  
 Data phrases: `evening dusk, lamps lit, winter, bare branches, Christmas day, fairy lights, festive, clear sky, Korean setting, tall apartment buildings, forested area, tall pines`
 
 | base regime | style LoRA | result |

@@ -124,8 +124,8 @@ breakdown and see exactly what their data turned into.
 | weather | 맑음 |
 | date | 2026-12-25 |
 | country | 대한민국 |
-| city | 수원시 |
-| place | 광교포레스트 아파트 |
+| city | 서울시 |
+| place | 무궁화 아파트 |
 
 ### Field → phrase mapping
 
@@ -137,7 +137,6 @@ breakdown and see exactly what their data turned into.
 | `weather=맑음` | `clear sky` |
 | `country=대한민국` | `Korean setting` |
 | `place` matches `아파트` | `tall apartment buildings` |
-| `place` matches `포레스트` | `forested area, tall pines` |
 
 ### Final prompt sent to SDXL-Turbo
 

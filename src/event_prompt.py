@@ -7,8 +7,8 @@ Input shape:
     "weather": "맑음",                        # Korean or English
     "date":    "2026-12-25",                 # YYYY-MM-DD
     "country": "대한민국",                     # Korean / English country name
-    "city":    "수원시",                       # optional
-    "place":   "광교포레스트 아파트",           # POI string from reverse geocode
+    "city":    "서울시",                       # optional
+    "place":   "무궁화 아파트",                 # POI string from reverse geocode
   }
 
 Each field is mapped to a short English prompt phrase via small

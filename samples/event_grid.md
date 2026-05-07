@@ -1,4 +1,4 @@
-# Single-event prompt: 2026-12-25 19:00 광교포레스트
+# Single-event prompt: 2026-12-25 19:00 무궁화
 
 ## Input event
 
@@ -8,8 +8,8 @@
 | weather | 맑음 |
 | date | 2026-12-25 |
 | country | 대한민국 |
-| city | 수원시 |
-| place | 광교포레스트 아파트 |
+| city | 서울시 |
+| place | 무궁화 아파트 |
 
 ## Field → phrase mapping (from src/event_prompt.py)
 
@@ -20,8 +20,8 @@
 | `date=2026-12-25 (special)` | `Christmas day, fairy lights, festive` |
 | `weather=맑음` | `clear sky` |
 | `country=대한민국` | `Korean setting` |
-| `place='광교포레스트 아파트' matches '아파트'` | `tall apartment buildings` |
-| `place='광교포레스트 아파트' matches '포레스트'` | `forested area, tall pines` |
+| `place='무궁화 아파트' matches '아파트'` | `tall apartment buildings` |
+| `place='무궁화 아파트' matches '포레스트'` | `forested area, tall pines` |
 
 ## Full positive prompt (sent to SDXL-Turbo + worstimever LoRA)
 
