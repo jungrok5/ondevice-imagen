@@ -165,6 +165,61 @@ HALF_REMEMBERED_FILM = StylePreset(
 )
 
 
+MOM_KOREAN_LIVING_ROOM = StylePreset(
+    name="mom_korean_living_room",
+    positive_prefix=(
+        "amateur colored pencil portrait drawn by a sincere Korean mother "
+        "in 1980s, earnest but slightly off-proportion, displayed in a "
+        "wooden frame on a Korean apartment living room wall, soft pastel "
+        "colors, gentle handcraft, family memento"
+    ),
+    negative_extra=(
+        "professional, anatomy correct, sharp, photograph, anime, modern"
+    ),
+)
+
+
+RETIRED_ENGINEER_WATERCOLOR = StylePreset(
+    name="retired_engineer_watercolor",
+    positive_prefix=(
+        "amateur watercolor painting by a retired engineer who took up "
+        "painting at 65, slightly stiff careful brushwork, earnest precision "
+        "applied to soft colors, slightly wrong perspective, simple framing, "
+        "den wall art"
+    ),
+    negative_extra=(
+        "professional artist, perfect, photograph, sharp, anime, digital"
+    ),
+)
+
+
+KOREAN_WEDDING_HALL_90S = StylePreset(
+    name="korean_wedding_hall_90s",
+    positive_prefix=(
+        "1990s Korean wedding hall hallway oil painting, mass-produced "
+        "Asian kitsch, beige and pale gold and dusty rose palette, "
+        "slightly faded glossy finish, earnest but stiff figures, "
+        "mid-tier hotel decor"
+    ),
+    negative_extra=(
+        "modern, sharp, digital, photograph, anime, professional gallery"
+    ),
+)
+
+
+DOCTORS_OFFICE_85 = StylePreset(
+    name="doctors_office_85",
+    positive_prefix=(
+        "1985 doctor's waiting room watercolor painting, mass-produced "
+        "soothing institutional art, soft pastel palette, beige walls, "
+        "slightly out of proportion figures, calming forgettable decor"
+    ),
+    negative_extra=(
+        "modern, sharp, digital, photograph, anime, professional gallery"
+    ),
+)
+
+
 PRESETS: dict[str, StylePreset] = {
     p.name: p
     for p in [
@@ -179,6 +234,10 @@ PRESETS: dict[str, StylePreset] = {
         EMBROIDERED_SAMPLER,
         FRIENDS_MOM_PORTRAIT,
         HALF_REMEMBERED_FILM,
+        MOM_KOREAN_LIVING_ROOM,
+        RETIRED_ENGINEER_WATERCOLOR,
+        KOREAN_WEDDING_HALL_90S,
+        DOCTORS_OFFICE_85,
     ]
 }
 
