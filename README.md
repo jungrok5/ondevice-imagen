@@ -51,15 +51,52 @@ seed on cached CPU.
 
 1. The prompt builder really does respond to the data — different
    RNG seeds yield different scenes (kettle + cabinet, city skyline,
-   bookshelves with stars, bicycle + plants). The water cup count
-   always saturates at 8 because daily totals exceed the prompt cap;
-   that ceiling is something to widen if we want cup count itself to
-   feel data-driven.
+   bookshelves with stars, bicycle + plants). After lifting the cup
+   cap from 8 → 24, the per-week cup count itself also varies (these
+   four seeds now resolve to 13, 13, 16, 24 cups instead of all 8).
 2. SD-Turbo on this prompt produces mostly black ink on white. When
    pixelize quantises to 16 colors, the palette collapses to grayscale
    and the result reads as a *Game Boy / vintage calculator screen*
    instead of MS Paint. Arguably stronger "pixel-perfect" energy than
    the original prompt asked for — a happy accident worth keeping.
+
+### img2img vs. txt2img: same prompts, two pipelines
+
+`random_weeks_doodle.py` uses **img2img** — the deterministic
+pictographic collage acts as a layout guide and SD-Turbo redraws it in
+the doodle style. Every week's output therefore inherits the same
+"white postcard with cups in rows + small icons scattered" structure;
+data variation shows up in *what* gets drawn, not *where*.
+
+[scripts/random_weeks_txt2img.py](scripts/random_weeks_txt2img.py) is
+the pure **txt2img** counterpart — same prompts, no collage seed, a
+different noise seed per week. The model is free to imagine the layout
+itself.
+
+| seed | img2img (collage seed) | txt2img (free noise) | txt2img + pixelize |
+|---|---|---|---|
+| 11 (24 cups, windy) | ![](samples/random_w11_doodle.png) | ![](samples/random_w11_txt2img.png) | ![](samples/random_w11_txt2img_pixel.png) |
+| 22 (16 cups, cloudy) | ![](samples/random_w22_doodle.png) | ![](samples/random_w22_txt2img.png) | ![](samples/random_w22_txt2img_pixel.png) |
+| 33 (13 cups, snowy) | ![](samples/random_w33_doodle.png) | ![](samples/random_w33_txt2img.png) | ![](samples/random_w33_txt2img_pixel.png) |
+| 44 (13 cups, windy) | ![](samples/random_w44_doodle.png) | ![](samples/random_w44_txt2img.png) | ![](samples/random_w44_txt2img_pixel.png) |
+
+**Reading.** The two pipelines answer different questions:
+
+- **img2img** is the layout-stable path. Output stays close to the
+  collage and the white-paper background of the original prompt is
+  preserved. This is closer to the canonical 하찮은 프롬프트 use case
+  (which was always img2img on a real photo) but visually similar
+  across seeds.
+- **txt2img** lets SD compose freely. Outputs are full-bleed,
+  saturated, very different per seed — a Christmas-card pattern of red
+  and white cups for one seed, a yellow city nightscape for another.
+  Less faithful to the "white doodle on paper" intent but much wider
+  variation.
+- The txt2img path also stacks beautifully with pixelize: flat
+  saturated colors survive the 16-color quantization, so the result
+  reads as a 16-bit-game pattern instead of the grayscale Game Boy
+  screen the img2img version collapses to. `random_w11_txt2img_pixel`
+  is currently the strongest pixel-art result in the repo.
 
 ### Pixelize over colorful sources: 16-bit cutscene aesthetic
 
