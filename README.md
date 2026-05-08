@@ -10,6 +10,66 @@ that lets us try a checkpoint, look at the result, and decide whether it
 is worth carrying to mobile. The committed `samples/` images and the
 notes below are the actual research output.
 
+## Data-only baseline — what does SD do with just my translated info?
+
+User asked the cleanest possible question: *if I strip everything
+extra and only give SD the translated event data, what comes out?*
+
+Same input event (19:00 / 맑음 / 2026-12-25 / 대한민국 서울시 무궁화 아파트).
+Same translation step. **No** STYLE_TAGS, **no** NEGATIVE, **no**
+LoRA trigger phrase. Optionally a LoRA is fused (without trigger).
+
+Prompt sent to SDXL-Turbo:
+```
+evening dusk, lamps lit, winter, bare branches, Christmas day,
+fairy lights, festive, clear sky, Korean setting,
+tall apartment buildings
+```
+
+| LoRA fused (no trigger in prompt) | result |
+|---|---|
+| (none) | ![](samples/data_only_00_data_only_no_lora.png) |
+| `worstimever_xl.safetensors` @ 0.9 | ![](samples/data_only_01_data_only_worstimever.png) |
+| `sdxl_mspaint_portraits.safetensors` @ 0.9 | ![](samples/data_only_02_data_only_mspaint.png) |
+
+### Three findings
+
+1. **All three outputs are nearly identical** — photorealistic dusk
+   skyline of a Seoul-ish apartment block with hanging string lights
+   and bare branches. Nothing doodle-like.
+2. **Loading a LoRA without its trigger in the prompt does almost
+   nothing.** The LoRA style is gated on the trigger token, not on
+   fuse-time weights alone.
+3. **Translated data alone → SDXL-Turbo's default = clean photo.**
+   The 한심 doodle look needs an explicit instruction in the prompt.
+
+### The full prompt-layer stack we have built
+
+Each layer is additive and optional. User picks which to ship per
+visual mode.
+
+```
+raw event (time / weather / date / country / city / place)
+    │
+    ▼   src/event_prompt.py  field → phrase tables
+    └─ translated English phrases     →  result is a clean photo
+    │
+    ▼   add LoRA trigger token at front
+    └─ + LoRA trigger                 →  result picks up the LoRA's
+                                          light style flavour
+    │
+    ▼   prepend STYLE_TAGS block
+    └─ + 'ugly MS Paint doodle, ...'  →  result is the deliberately-bad
+                                          doodle (load-bearing layer!)
+    │
+    ▼   add NEGATIVE prompt
+    └─ + 'photorealistic, polished'   →  push out the photo / polish
+                                          tendency that keeps leaking
+                                          back in
+```
+
+Driver: [scripts/compare_data_only.py](scripts/compare_data_only.py).
+
 ## Raw LoRA capability — what each LoRA actually does
 
 We had been showing 하찮은-style results that looked like the LoRAs
