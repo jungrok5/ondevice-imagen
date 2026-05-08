@@ -17,6 +17,44 @@ that lets us try a checkpoint, look at the result, and decide whether it
 is worth carrying to mobile. The committed `samples/` images and the
 notes below are the actual research output.
 
+## 5 event variations × 2 style LoRAs
+
+Same SDXL-Turbo, same seed (42). Triggers auto-prepended via the
+`LORA_TRIGGERS` registry (testing rule respected). Each row is one
+event shape; the two columns are the two style LoRAs we like.
+
+| event | data | worstimever | mspaint_portraits |
+|---|---|---|---|
+| `e1 xmas evening` | 19:00 / 맑음 / 12-25 / 무궁화 아파트 | ![](samples/var_e1_xmas_evening_worstimever.png) | ![](samples/var_e1_xmas_evening_mspaint_portraits.png) |
+| `e2 summer park` | 14:30 / 맑음 / 08-15 / 한강 공원 | ![](samples/var_e2_summer_park_worstimever.png) | ![](samples/var_e2_summer_park_mspaint_portraits.png) |
+| `e3 rainy cafe` | 08:45 / 비 / 03-20 / 광화문 카페 | ![](samples/var_e3_rainy_cafe_worstimever.png) | ![](samples/var_e3_rainy_cafe_mspaint_portraits.png) |
+| `e4 autumn night home` | 23:30 / 흐림 / 10-31 / 무궁화 아파트 | ![](samples/var_e4_autumn_night_home_worstimever.png) | ![](samples/var_e4_autumn_night_home_mspaint_portraits.png) |
+| `e5 snow noon market` | 12:00 / 눈 / 02-04 / 광장시장 | ![](samples/var_e5_snow_noon_market_worstimever.png) | ![](samples/var_e5_snow_noon_market_mspaint_portraits.png) |
+
+### Verified working end-to-end
+
+- **Season** translation fires: 12→winter, 8→summer, 3→spring,
+  10→autumn, 2→winter (visible in foliage / snow / leaves).
+- **Special-date** hook fires: `12-25` → Christmas tree + lights in e1.
+- **Weather** translates: 맑음 / 비 / 흐림 / 눈 each render distinct
+  atmospheres (sun, rain on streets, overcast sky, snow on ground).
+- **POI keyword** matches do their job: 아파트 / 공원 / 카페 / 시장
+  each pull a different scene.
+- **LoRA register stays distinct** across all 5 events:
+  worstimever = saturated cartoon, thick black outlines;
+  mspaint_portraits = sketchier illustration, slightly more polished.
+
+### One issue spotted
+
+`e4 (23:30)` does NOT read as night — both LoRAs render bright
+daylight. The `_time_phrase` dictionary's "night, dark windows, lamp
+glow" wording is too gentle for the cartoon LoRAs to push the scene
+dark. Probably needs explicit cues like "dark night sky, moonlight,
+stars overhead". Editable in
+[src/event_prompt.py](src/event_prompt.py).
+
+Driver: [scripts/compare_event_variations.py](scripts/compare_event_variations.py).
+
 ## Why the data-only LoRA cells looked identical — sanity check
 
 User asked: *if a LoRA is fused at scale 0.9, why does the output look
