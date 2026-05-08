@@ -67,41 +67,54 @@ NEGATIVE = (
 # ("moon", "rain puddles", "snowflakes") survive better.
 
 _TIME_PHRASES: dict[str, list[str]] = {
+    # IMPORTANT: time phrases describe time-of-day signals (light direction,
+    # shadow length, lamp state, activity level) and intentionally AVOID
+    # sky-color or cloud descriptors — those belong to weather phrases and
+    # would conflict (e.g. "blue sky" + "rain falling" produces a confused
+    # render). Night is the one exception: an unlit night sky IS the time
+    # signal, so it stays.
     "early_morning": [
-        "early morning, pale dawn light, long shadows",
-        "sunrise glow, pink-orange sky, quiet street",
-        "first light of day, mist hovering low",
+        "early morning, long horizontal shadows, very few people",
+        "first light of day, soft side light, empty quiet street",
+        "dawn, faint warm light, almost no traffic",
+        "early morning hour, dim diffuse light, lone jogger",
     ],
     "morning": [
-        "morning, soft golden light, crisp air",
-        "bright morning sunlight, blue sky",
-        "late morning, warm sunshine, sharp shadows",
+        "morning, soft slanted light, sharp small shadows",
+        "mid-morning hour, school kids, busy commute",
+        "morning light, crisp clean atmosphere, fresh start of the day",
+        "morning, dewdrops on grass, golden side light",
     ],
     "midday": [
-        "midday sun directly overhead, bright bleaching light",
-        "noon, harsh bright light, short shadows",
-        "lunchtime, sun high, vivid colors",
+        "midday, sun directly overhead, very short shadows",
+        "noon, lunchtime crowd, busy storefronts",
+        "midday hour, bleaching overhead light, people on a quick lunch break",
+        "noon, vendor stalls in full swing, vivid daylight",
     ],
     "afternoon": [
-        "afternoon, slanted sunlight, warm tones",
-        "mid-afternoon, soft shadows, calm light",
-        "late afternoon, golden warm glow",
+        "afternoon, slanted warm light, lengthening shadows",
+        "mid-afternoon, lazy quiet hour, parents with kids on the street",
+        "late afternoon, long shadows, golden side light",
+        "afternoon, schoolchildren walking home, warm tones",
     ],
     "early_evening": [
-        "early evening, golden hour, orange-pink sky",
-        "sunset glow, red-purple clouds, long shadows",
-        "dusk approaching, sun low on horizon, warm sky",
+        "early evening, golden hour, very long shadows",
+        "sunset hour, warm orange light bouncing off walls",
+        "dusk approaching, last warm light of the day, lamps starting to flicker on",
+        "evening rush, returning commuters, sky darkening at the edges",
     ],
     "evening": [
-        "evening dusk, lamps lit, deep blue sky",
-        "early night, glowing windows, street lamps on",
-        "twilight, first stars appearing, lamp glow on streets",
+        "evening, lamps lit, glowing windows, deep navy at the horizon",
+        "early night, street lamps on, lit shop signs, fewer people",
+        "twilight, first stars appearing, warm lamp glow spilling onto pavement",
+        "evening, neon signs starting to dominate, dark sky overhead",
     ],
     "night": [
         "dark night sky, big bright moon, stars, deep navy blue",
         "late night, glowing yellow windows, street lamps casting pools of light, dark sky",
         "midnight, crescent moon, stars scattered, dark blue-black sky, only lamp glow",
         "deep night, moonlight on rooftops, dark windows, occasional lit lamp",
+        "night, full moon casting silver light, very few lit windows, empty street",
     ],
 }
 
@@ -120,22 +133,30 @@ _SEASON_PHRASES: dict[str, list[str]] = {
     "winter": [
         "winter, bare branches, cold air visible as breath",
         "deep winter, leafless trees, icy ground",
-        "wintertime, dry brown grass, gray cold sky",
+        "wintertime, dry brown grass, frosted edges",
+        "winter, people in puffy jackets and scarves, frozen puddles",
+        "midwinter, evergreen pines holding patches of snow, bare deciduous trees",
     ],
     "spring": [
         "spring, fresh green leaves, cherry blossoms in bloom",
-        "early spring, pink and white blossoms on trees, soft breeze",
-        "spring, new buds on branches, scattered petals on ground",
+        "early spring, pink and white blossoms on trees, light layered clothing",
+        "spring, new buds on branches, scattered petals on the ground",
+        "late spring, full green canopy starting to fill in, magnolia blossoms",
+        "springtime, daffodils and tulips along the edges, mild breeze ruffling petals",
     ],
     "summer": [
         "summer, lush full green leaves, intense green",
-        "high summer, dense tree canopy, cicadas implied",
+        "high summer, dense tree canopy, cicadas implied, t-shirts and shorts",
         "summertime, vivid green grass, deep green leaves",
+        "midsummer, sunflowers and morning glories, heat shimmer in the air",
+        "summer, kids in sandals, ice cream stand visible in the corner",
     ],
     "autumn": [
-        "autumn, red and orange and yellow fallen leaves on ground",
+        "autumn, red and orange and yellow fallen leaves on the ground",
         "late autumn, bare-ish branches, piles of orange leaves",
         "autumn, maple leaves crimson, ginkgo leaves yellow on the ground",
+        "early autumn, leaves just starting to turn yellow, mild crisp atmosphere",
+        "autumn, persimmons hanging from a tree, light cardigans on people",
     ],
 }
 
@@ -148,22 +169,56 @@ def _season_bucket(month: int) -> str:
 
 
 _SPECIAL_DATE_PHRASES: dict[tuple[int, int], list[str]] = {
+    # solar-calendar dates only — lunar holidays (chuseok, seollal) shift
+    # year-to-year and are not encoded here.
+    (12, 24): [
+        "Christmas eve, families gathering, candles in windows",
+        "Christmas eve, snow gently falling, decorated shop fronts",
+    ],
     (12, 25): [
         "Christmas day, fairy lights twinkling, Christmas tree visible",
         "Christmas, red-and-green wreath, festive ornaments",
         "Christmas, snowflakes falling, lit Christmas tree, Santa hat",
+        "Christmas, gift boxes wrapped in red and gold ribbon, mistletoe",
     ],
     (12, 31): [
         "New Year's eve, fireworks bursting in the sky, sparklers",
         "New Year's eve, countdown banner, exploding fireworks above",
+        "year-end festivity, neon countdown clock, crowds bundled in coats",
     ],
     (1, 1): [
         "New Year's day, sunrise on a fresh year, traditional banner",
         "New Year's day, pristine snow, '새해' calligraphy banner",
+        "first day of the year, families in hanbok, calm festive mood",
     ],
     (2, 14): [
         "Valentine's day, pink and red hearts floating in the air",
         "Valentine's, heart shapes, roses, pink atmosphere",
+        "Valentine's day, chocolate boxes in shop windows, couples walking",
+    ],
+    (3, 1): [
+        "March First independence movement day, taegukgi flags hanging from windows",
+    ],
+    (5, 5): [
+        "Children's day, colorful balloons, families with kids in the park",
+        "어린이날, festive park scene, balloons and ice cream",
+    ],
+    (5, 8): [
+        "Parents' day, children handing red carnations, warm family moment",
+    ],
+    (8, 15): [
+        "Liberation day, taegukgi flags flying from balconies, festive mood",
+        "광복절, Korean flags lining the street",
+    ],
+    (10, 9): [
+        "Hangul day, calligraphy banners, '한글' brushwork",
+    ],
+    (10, 31): [
+        "Halloween, jack-o-lanterns on doorsteps, kids in costumes",
+        "Halloween night, cobwebs and pumpkins in shop windows",
+    ],
+    (11, 11): [
+        "Pepero day, stacks of long thin biscuit boxes in store windows",
     ],
 }
 
@@ -171,32 +226,44 @@ _SPECIAL_DATE_PHRASES: dict[tuple[int, int], list[str]] = {
 _WEATHER_PHRASES: dict[str, list[str]] = {
     "clear": [
         "clear blue sky, bright sunshine, no clouds",
-        "perfectly clear sky, sun visible, sharp shadows",
-        "crisp clear weather, deep blue sky, single fluffy cloud",
+        "perfectly clear sky, single fluffy cloud, sharp colors",
+        "crisp clear weather, deep blue sky, vivid daylight",
+        "sunny day, big white puffy clouds drifting, vivid contrast",
+        "open clear sky, glittering reflections off windows, bright atmosphere",
     ],
     "overcast": [
         "overcast gray sky, flat diffuse light, no shadows",
         "cloudy sky, thick gray clouds, moody atmosphere",
         "completely cloudy, dull gray sky, hazy air",
+        "heavy gray cloud cover, muted dull palette, soft uniform light",
+        "thick cloud blanket, low ceiling, stillness in the air",
     ],
     "rain": [
         "rain falling in visible streaks, wet shiny pavement, puddles reflecting light",
         "heavy rain, raindrops splashing in puddles, dark wet streets",
         "raining steadily, wet umbrellas, water dripping from edges",
         "drizzle, fine rain in the air, soaked sidewalks",
+        "rainstorm, sheets of rain at an angle, blurred distant shapes",
+        "light rain, glistening leaves, rainbow puddle reflections",
     ],
     "snow": [
         "snowing heavily, big white snowflakes falling, snow piled on ground",
         "snow falling softly, white blanket on every surface, footprints in snow",
         "snowstorm, swirling snowflakes, pristine white snow drifts",
+        "fluffy snow drifting down, snow hats on every surface, kids making snowman",
+        "fresh snowfall, untouched white powder, sparkling crystals catching the light",
     ],
     "wind": [
         "windy, leaves swirling in the air, hair and clothes blown sideways",
         "strong wind, branches bending, papers flying",
+        "gusty wind, plastic bag tumbling down the street, banners flapping",
+        "blustery weather, hats clutched in hands, scarves trailing horizontally",
     ],
     "fog": [
         "thick fog, distant shapes blurred, low visibility",
         "foggy morning, mist hugging the ground, ghostly silhouettes",
+        "dense fog, halos around every street lamp, muffled atmosphere",
+        "thin mist hanging in the air, soft pastel washed colors",
     ],
 }
 

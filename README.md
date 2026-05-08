@@ -84,6 +84,40 @@ Pass `prompt_seed=<int>` to make the phrase pick deterministic
 
 Driver: [scripts/randomness_check.py](scripts/randomness_check.py).
 
+### Both style LoRAs — 4 calls each, expanded phrase pools
+
+User follow-up: *do the same randomness guarantees hold under both
+LoRAs?* and *can the prompts be more varied?*
+
+Two changes:
+
+1. **Phrase pools expanded** — `_TIME_PHRASES`, `_SEASON_PHRASES`,
+   `_WEATHER_PHRASES`, and `_SPECIAL_DATE_PHRASES` each got 1–2 new
+   variants per bucket (people, foods, decorations, neon, kids in
+   sandals, persimmons, scarves, pepero towers, taegukgi flags…).
+   New solar-calendar holidays added (어린이날, 광복절, 한글날,
+   Halloween, 11/11, etc.).
+2. **Sky/cloud cues stripped from time phrases** — they used to
+   contain `"blue sky"` / `"bright sunshine"` which fought with
+   weather phrases (`"raining steadily"`). Time now describes light
+   *direction*, *shadow length*, *crowd activity*, and *lamp state*
+   only. Sky color is the weather field's job.
+
+Same `EVENT` (Christmas evening at a 무궁화 apartment), 4 calls per
+LoRA, same diffusion seed per row so the LoRA is the only column
+axis. Result: 8 distinct doodles spanning empty city streets,
+colourful village rows, padded crowds, santas, christmas-tree-lined
+alleys.
+
+| call # | worstimever | mspaint_portraits |
+| --- | --- | --- |
+| 0 | ![](samples/rand2_worstimever_0.png) | ![](samples/rand2_mspaint_portraits_0.png) |
+| 1 | ![](samples/rand2_worstimever_1.png) | ![](samples/rand2_mspaint_portraits_1.png) |
+| 2 | ![](samples/rand2_worstimever_2.png) | ![](samples/rand2_mspaint_portraits_2.png) |
+| 3 | ![](samples/rand2_worstimever_3.png) | ![](samples/rand2_mspaint_portraits_3.png) |
+
+Driver: [scripts/two_lora_randomness.py](scripts/two_lora_randomness.py).
+
 ## Why the data-only LoRA cells looked identical — sanity check
 
 User asked: *if a LoRA is fused at scale 0.9, why does the output look
