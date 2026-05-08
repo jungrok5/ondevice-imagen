@@ -38,16 +38,30 @@ from dataclasses import dataclass
 # do not edit unless the LoRA is replaced.
 LORA_TRIGGERS: dict[str, str] = {
     "none":               "",
-    # worstimever — civitai.com/models/135316 — "WTE artstyle"
-    "worstimever":        "WTE artstyle",
-    # mspaint_portraits — civitai.com/models/183354 — both "MSPaint
-    # portrait" and "MSPaint drawing" are official triggers. We use
-    # `MSPaint drawing` because our use case renders SCENES not
-    # portraits, and `portrait` was empirically observed to insert a
-    # foreground person figure (see scripts/trigger_correctness_check.py).
-    "mspaint_portraits":  "MSPaint drawing",
-    "lah_cute_social":    "cute doodle,",
-    "pixel_art_xl":       "pixel art,",
+    # All triggers below are taken verbatim from the LoRA's Civitai
+    # "Trigger Words" field — that is the only authoritative source
+    # (.safetensors metadata does not standardize triggers). Verified
+    # 2026-05-08.
+    "worstimever":            "WTE artstyle",                              # 135316
+    "mspaint_portraits":      "MSPaint drawing",                           # 183354 (drawing not portrait — see trigger_correctness_check.py)
+    "doodle_style":           "SDXL_BTT_Doodle_v01",                       # 733335
+    "doodles_in_real_life":   "photo doodle",                              # 229000
+    "cyberpunk_lines":        "lineAnime",                                 # 574889
+    "linedrawing":            "LineDrawing(style)",                        # 709714
+    "lineart_zoolin":         "lineart style",                             # 2148315
+    "asian_line_storyboard":  "asian, storyboard, sketch",                 # 429761 (3 listed; combined per page)
+    "soft_squishy_linework":  "",                                          # 515703 (no trigger required)
+    "colored_line":           "SCTX",                                      # 598326
+    "clean_bw_line_art":      "K3NJIKUN ARTSTYLE",                         # 1010573
+    "tangbohu_landscape":     "",                                          # 535374 (no trigger listed — fuse-only, may be weak)
+    "digital_art_illustrations": "J_GUOCHAO",                              # 534574
+    "simplex":                "SIMPLEX",                                   # 300268 (also "simple lines"; SIMPLEX is the more specific token)
+    "simple_toons":           "a simple cartoon illustration, clean lineart",  # 2007180
+    "jackledead_artstyle":    "POP ART, DRAWING",                          # 783895 (LoRA has 50+ listed; we pick safe non-NSFW subset)
+    "japanese_illustration":  "AKINO",                                     # 1841264
+    # legacy no-LoRA aliases kept for older scripts
+    "lah_cute_social":        "cute doodle,",
+    "pixel_art_xl":           "pixel art,",
     # Speed LoRAs (Lightning, Hyper-SD) take no trigger — they modify
     # the denoising schedule, not visual style. Don't add them here.
 }
@@ -377,8 +391,25 @@ _PLACE_PROPER_NOUNS: list[tuple[str, str]] = [
     ("forest",     "forested area, tall pines"),
     ("공원",       "park with trees and benches"),
     ("park",       "park with trees and benches"),
-    ("카페",       "cozy Korean cafe"),
-    ("cafe",       "cozy cafe"),
+    # Indoor venues — explicit "indoor" or "interior" cue so the
+    # renderer doesn't default to a building exterior.
+    ("카페",       "indoor cozy Korean cafe interior, wooden tables, warm hanging lights, espresso machine on counter"),
+    ("cafe",       "indoor cozy cafe interior, wooden tables, warm hanging lights"),
+    ("도서관",     "indoor quiet library interior, tall bookshelves, reading desks, soft warm lamp light"),
+    ("library",    "indoor library interior, bookshelves, reading lamps"),
+    ("편의점",     "indoor Korean convenience store interior, fluorescent ceiling lights, snack and drink shelves, register counter"),
+    ("convenience","indoor convenience store interior, fluorescent lights, shelves of snacks"),
+    ("백화점",     "indoor department store interior, polished floors, escalator, display windows"),
+    ("학원",       "indoor after-school academy classroom, desks, whiteboard"),
+    ("교회",       "church interior, wooden pews, stained glass, cross above the altar"),
+    ("절",         "Buddhist temple interior, candles, large bronze bell, painted wooden ceiling"),
+    ("temple",     "Buddhist temple interior, candles, painted wooden ceiling"),
+    ("거실",       "indoor home living room, sofa, low coffee table, warm floor lamp"),
+    ("방",         "indoor home bedroom, bed with blanket, small desk, window with curtains"),
+    ("주방",       "indoor home kitchen, stove, fridge, small dining table"),
+    ("학교",       "school building, schoolyard"),
+    ("school",     "school building"),
+    # Outdoor venues
     ("역",         "subway station entrance"),
     ("station",    "train station"),
     ("광장",       "city plaza, open square"),
@@ -389,19 +420,8 @@ _PLACE_PROPER_NOUNS: list[tuple[str, str]] = [
     ("mountain",   "mountain in the distance"),
     ("바다",       "seaside, ocean horizon"),
     ("beach",      "sandy beach, ocean"),
-    ("학교",       "school building, schoolyard"),
-    ("school",     "school building"),
-    ("도서관",     "quiet library, bookshelves"),
-    ("library",    "library"),
     ("시장",       "outdoor Korean market stalls, food vendors"),
     ("market",     "outdoor market stalls"),
-    ("편의점",     "Korean convenience store, lit signs"),
-    ("convenience","convenience store"),
-    ("백화점",     "department store"),
-    ("학원",       "after-school academy building"),
-    ("교회",       "church with cross steeple"),
-    ("절",         "Buddhist temple, traditional roof"),
-    ("temple",     "Buddhist temple, traditional roof"),
 ]
 
 

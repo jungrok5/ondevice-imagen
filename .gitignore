@@ -5,6 +5,10 @@ __pycache__/
 *.pyo
 .DS_Store
 
+# Local secrets — never commit
+.civitai_token
+.env
+
 # Generated outputs and model caches (local only — committed reference
 # images live in samples/ instead)
 outputs/*.png
