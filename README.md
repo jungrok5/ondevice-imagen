@@ -10,6 +10,42 @@ that lets us try a checkpoint, look at the result, and decide whether it
 is worth carrying to mobile. The committed `samples/` images and the
 notes below are the actual research output.
 
+## Why the data-only LoRA cells looked identical — sanity check
+
+User asked: *if a LoRA is fused at scale 0.9, why does the output look
+the same as no LoRA at all?* Four-cell sanity test, same SDXL-Turbo,
+same seed:
+
+| label | LoRA state | prompt | result |
+|---|---|---|---|
+| **A** | none | data only | ![](samples/sanity_A_no_lora_base_prompt.png) |
+| **B** | worstimever fused @ 0.9 | **trigger + data** | ![](samples/sanity_B_worst_fused_with_trigger.png) |
+| **C** | worstimever still fused | data only (NO trigger) | ![](samples/sanity_C_worst_fused_no_trigger.png) |
+| **D** | unfuse + unload | data only | ![](samples/sanity_D_after_unload_base_prompt.png) |
+
+Findings:
+
+- **A == D** → `unfuse_lora()` + `unload_lora_weights()` work
+  correctly. The earlier "all 3 look the same" was *not* a state-leak
+  bug.
+- **A ≈ C** → fusing a LoRA without putting its trigger in the prompt
+  produces essentially the same output as no LoRA at all.
+- **A ≠ B** → with the trigger in the prompt, the LoRA gives a
+  clearly different cartoon-doodle. The LoRA works fine; it just
+  needs activation.
+
+**Mechanism**: LoRA training conditions its delta on the trigger
+token's cross-attention pattern. Without that token in the input
+embeddings, the modified UNet weights have no signal to apply
+differentially. *Fuse is necessary but not sufficient — the trigger
+phrase is what activates the LoRA.*
+
+**Production implication**: `src/event_prompt.py` should auto-prepend
+the selected LoRA's trigger phrase. The user picks a visual style;
+the prompt builder handles trigger plumbing under the hood.
+
+Driver: [scripts/sanity_lora.py](scripts/sanity_lora.py).
+
 ## Data-only baseline — what does SD do with just my translated info?
 
 User asked the cleanest possible question: *if I strip everything
