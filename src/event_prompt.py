@@ -16,8 +16,13 @@ dictionaries. The transformation is *deterministic* and *inspectable*
 so the user can read the README table and see exactly which field
 turned into which phrase.
 
-Final prompt structure:
-  {LORA_TRIGGER}, {STYLE_TAGS}, {translated event phrases}
+Final prompt structure (per visual_style):
+  {LORA_TRIGGERS[visual_style]}, {STYLE_TAGS?}, {translated event phrases}
+
+The LoRA trigger is *required* for any style LoRA to actually take
+effect (verified by sanity_lora.py — fusing without the trigger in
+the prompt produces ~no change). The registry below maps a short
+style name to the exact trigger phrase from each LoRA's card.
 """
 from __future__ import annotations
 
@@ -25,7 +30,22 @@ import datetime as _dt
 from dataclasses import dataclass
 
 
-LORA_TRIGGER = "DD-wte artstyle, worst-im-ever cartoon doodle"
+# LoRA trigger registry. Keys are short style names; the user picks
+# one of these for visual_style and the builder auto-prepends the
+# trigger phrase. Triggers come from each LoRA card on Civitai/HF —
+# do not edit unless the LoRA is replaced.
+LORA_TRIGGERS: dict[str, str] = {
+    "none":               "",
+    "worstimever":        "DD-wte artstyle, worst-im-ever cartoon doodle",
+    "mspaint_portraits":  "MSPaint drawing of",
+    "lah_cute_social":    "cute doodle,",
+    "pixel_art_xl":       "pixel art,",
+    # Speed LoRAs (Lightning, Hyper-SD) take no trigger — they modify
+    # the denoising schedule, not visual style. Don't add them here.
+}
+
+# Default style for new generations. Override via visual_style arg.
+DEFAULT_VISUAL_STYLE = "worstimever"
 
 STYLE_TAGS = (
     "ugly MS Paint doodle, white paper, black ink only, pixelated low-res, "
@@ -146,12 +166,29 @@ class EventPrompt:
     breakdown: list[tuple[str, str]]  # [(input_field, output_phrase), ...]
 
 
-def build_event_prompt(event: dict) -> EventPrompt:
+def build_event_prompt(
+    event: dict,
+    visual_style: str = DEFAULT_VISUAL_STYLE,
+    include_style_tags: bool = True,
+) -> EventPrompt:
     """Map a structured single-moment event to an SD prompt.
+
+    visual_style       — which LoRA's trigger to auto-prepend. Must be
+                         a key in LORA_TRIGGERS (see registry above).
+                         Use "none" to skip the trigger entirely.
+    include_style_tags — if True, prepend the deliberately-bad STYLE_TAGS
+                         block. Set False to test data-only baseline.
 
     Returns positive prompt, negative prompt, and a (field -> phrase)
     breakdown so README / UI can show which input became which phrase.
     """
+    if visual_style not in LORA_TRIGGERS:
+        raise ValueError(
+            f"unknown visual_style {visual_style!r}; "
+            f"choose one of {list(LORA_TRIGGERS)}"
+        )
+    trigger = LORA_TRIGGERS[visual_style]
+
     breakdown: list[tuple[str, str]] = []
 
     # 1. Time → time-of-day phrase
@@ -227,5 +264,11 @@ def build_event_prompt(event: dict) -> EventPrompt:
             fragments.append(f)
 
     moment_block = ", ".join(fragments)
-    positive = f"{LORA_TRIGGER}, {STYLE_TAGS}, {moment_block}"
+    head_parts = []
+    if trigger:
+        head_parts.append(trigger.rstrip(",").rstrip())
+    if include_style_tags:
+        head_parts.append(STYLE_TAGS)
+    head = ", ".join(head_parts)
+    positive = f"{head}, {moment_block}" if head else moment_block
     return EventPrompt(positive=positive, negative=NEGATIVE, breakdown=breakdown)

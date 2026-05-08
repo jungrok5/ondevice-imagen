@@ -1,5 +1,12 @@
 # local-ai-rnd
 
+> **Testing rule (applies to every script from now on):** when a LoRA
+> is loaded for testing, its card-specified trigger phrase **must**
+> be in the prompt. Fusing without the trigger produces ≈ no LoRA
+> effect (proven by `scripts/sanity_lora.py`). Triggers are
+> centralised in `src/event_prompt.py` `LORA_TRIGGERS` registry — pick
+> a `visual_style` name and the prompt builder handles the trigger.
+
 Research notes on what on-device image generation can do in 2026 — what
 models run on iPhone and Android phones without per-platform engineering,
 how good the output gets, and how the speed / quality / aesthetic dials
