@@ -19,9 +19,20 @@ notes below are the actual research output.
 
 ## 5 event variations × 2 style LoRAs
 
-Same SDXL-Turbo, same seed (42). Triggers auto-prepended via the
-`LORA_TRIGGERS` registry (testing rule respected). Each row is one
+Same SDXL-Turbo, same diffusion seed (42). Triggers auto-prepended via
+the `LORA_TRIGGERS` registry (testing rule respected). Each row is one
 event shape; the two columns are the two style LoRAs we like.
+
+The prompt builder is now **non-deterministic by default** — each
+cell here drew its phrases from the pools in
+[src/event_prompt.py](src/event_prompt.py), so re-running this script
+produces *fresh* phrasings (and slightly different images) for the
+same event. See the *Randomness check* section below for proof.
+
+Korean place names are translated to **English proper nouns**
+(`광장시장 → "Gwangjang Market"`, `광화문 → "Gwanghwamun"`,
+`한강 → "Hangang River"`, …) so the model has a real anchor instead
+of an opaque token.
 
 | event | data | worstimever | mspaint_portraits |
 |---|---|---|---|
@@ -38,22 +49,40 @@ event shape; the two columns are the two style LoRAs we like.
 - **Special-date** hook fires: `12-25` → Christmas tree + lights in e1.
 - **Weather** translates: 맑음 / 비 / 흐림 / 눈 each render distinct
   atmospheres (sun, rain on streets, overcast sky, snow on ground).
-- **POI keyword** matches do their job: 아파트 / 공원 / 카페 / 시장
-  each pull a different scene.
+- **Place names** romanize: `광장시장` → *Gwangjang Market*, `광화문`
+  → *Gwanghwamun*, `한강` → *Hangang River* — the model now sees an
+  English noun rather than dropping the field.
+- **Night** finally reads as night thanks to the strengthened phrase
+  pool (`"dark night sky, big bright moon, stars, deep navy blue"` and
+  three other variants) replacing the earlier weak `"night, dark
+  windows, lamp glow"` that cartoon LoRAs were ignoring.
 - **LoRA register stays distinct** across all 5 events:
   worstimever = saturated cartoon, thick black outlines;
   mspaint_portraits = sketchier illustration, slightly more polished.
 
-### One issue spotted
-
-`e4 (23:30)` does NOT read as night — both LoRAs render bright
-daylight. The `_time_phrase` dictionary's "night, dark windows, lamp
-glow" wording is too gentle for the cartoon LoRAs to push the scene
-dark. Probably needs explicit cues like "dark night sky, moonlight,
-stars overhead". Editable in
-[src/event_prompt.py](src/event_prompt.py).
-
 Driver: [scripts/compare_event_variations.py](scripts/compare_event_variations.py).
+
+## Randomness check — same event × 4 calls
+
+User asked: *can the same input produce different images each time
+the button is pressed?* Yes — every field (`time`, `date`, `weather`,
+`place`) now maps to a *pool* of English phrases instead of one
+fixed phrase, and `build_event_prompt()` picks at random per call.
+
+Same `EVENT` dict, same LoRA, same model — only the random phrase
+choice (and the diffusion seed) varies between cells:
+
+| # | data phrases (post-trigger, pre-style-tags) | result |
+| --- | --- | --- |
+| 0 | evening dusk, lamps lit, deep blue sky, wintertime, dry brown grass, gray cold sky, Christmas, snowflakes falling | ![](samples/rand_0.png) |
+| 1 | early night, glowing windows, street lamps on, wintertime, dry brown grass, gray cold sky, Christmas, red-and-green wreath | ![](samples/rand_1.png) |
+| 2 | early night, glowing windows, street lamps on, deep winter, leafless trees, icy ground, Christmas, red-and-green | ![](samples/rand_2.png) |
+| 3 | early night, glowing windows, street lamps on, deep winter, leafless trees, icy ground, Christmas day, fairy lights | ![](samples/rand_3.png) |
+
+Pass `prompt_seed=<int>` to make the phrase pick deterministic
+(useful for tests). Default is `None` = fresh randomness.
+
+Driver: [scripts/randomness_check.py](scripts/randomness_check.py).
 
 ## Why the data-only LoRA cells looked identical — sanity check
 
@@ -341,30 +370,43 @@ breakdown and see exactly what their data turned into.
 | city | 서울시 |
 | place | 무궁화 아파트 |
 
-### Field → phrase mapping
+### Field → phrase pool (one example draw)
 
-| source | phrase injected |
-|---|---|
-| `time=19:00` | `evening dusk, lamps lit` |
-| `date=2026-12-25` (season) | `winter, bare branches` |
-| `date=2026-12-25` (special) | `Christmas day, fairy lights, festive` |
-| `weather=맑음` | `clear sky` |
-| `country=대한민국` | `Korean setting` |
-| `place` matches `아파트` | `tall apartment buildings` |
+Each input field maps to a **pool** of English phrases; the builder
+picks one at random per call (or per `prompt_seed`). One example draw:
+
+| source | bucket | phrase drawn |
+|---|---|---|
+| `time=19:00` | `evening` | `evening dusk, lamps lit, deep blue sky` |
+| `date=2026-12-25` | `winter` | `wintertime, dry brown grass, gray cold sky` |
+| `date=2026-12-25` | special | `Christmas, snowflakes falling, lit Christmas tree, Santa hat` |
+| `weather=맑음` | `clear` | `crisp clear weather, deep blue sky, single fluffy cloud` |
+| `country=대한민국` | — | `Korean setting` |
+| `place` matches `아파트` | — | `tall Korean apartment buildings` |
+
+The pools live at the top of [src/event_prompt.py](src/event_prompt.py)
+as `_TIME_PHRASES`, `_SEASON_PHRASES`, `_SPECIAL_DATE_PHRASES`,
+`_WEATHER_PHRASES`, and `_PLACE_PROPER_NOUNS`. Edit them and the next
+call picks from your edits.
 
 ### Final prompt sent to SDXL-Turbo
 
+Order matters because CLIP truncates at 77 tokens. The trigger goes
+first (load-bearing for the LoRA), then the user-data phrases (the
+whole point of the prompt), and *only then* the generic STYLE_TAGS —
+so when the prompt overruns the limit, the generic style hints get
+dropped, not the user's actual moment:
+
 ```
 DD-wte artstyle, worst-im-ever cartoon doodle,
-ugly MS Paint doodle, white paper, black ink only, pixelated low-res,
-child scribble, naive crude drawing,
-evening dusk, lamps lit,
-winter, bare branches,
-Christmas day, fairy lights, festive,
-clear sky,
+evening dusk, lamps lit, deep blue sky,
+wintertime, dry brown grass, gray cold sky,
+Christmas, snowflakes falling, lit Christmas tree, Santa hat,
+crisp clear weather, deep blue sky, single fluffy cloud,
 Korean setting,
-tall apartment buildings,
-forested area, tall pines
+tall Korean apartment buildings,
+ugly MS Paint doodle, white paper, black ink only, pixelated low-res,
+child scribble, naive crude drawing
 ```
 
 ### Generated image
@@ -379,9 +421,13 @@ back to a row in the table above. Driver:
 
 ### Editing the mapping
 
-Want a different translation for the same input? Edit the dicts at
-the top of `src/event_prompt.py` — they're small (~30 lines) and pure
-data. Rerun `match_user_event.py` to see the new result.
+Want a different translation for the same input? Edit the phrase
+pools at the top of [src/event_prompt.py](src/event_prompt.py) —
+they're plain `dict[str, list[str]]` data. Add a new variant to
+`_TIME_PHRASES["night"]` and the next call may pick yours; expand
+`_PLACE_PROPER_NOUNS` to romanize a new neighborhood. Rerun
+`scripts/randomness_check.py` (or any other driver) to see the new
+result.
 
 ## v10 — diary-aggregate flow (multiple events into one weekly postcard)
 
