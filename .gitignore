@@ -29,6 +29,7 @@ samples/lora_compare.log
 samples/base_compare.log
 samples/options.log
 samples/raw_lora.log
+samples/data_only.log
 sdxl_base_dl.log
 models/lora/
 .cache/
