@@ -118,6 +118,55 @@ alleys.
 
 Driver: [scripts/two_lora_randomness.py](scripts/two_lora_randomness.py).
 
+## Trigger correctness — Civitai-official vs our prior guesses
+
+User noticed our cell outputs didn't match the Civitai preview-image
+register and asked whether we had the trigger words right. We didn't.
+Up to this point our `LORA_TRIGGERS` registry held best-effort guess
+strings; the Civitai pages each list an authoritative *Trigger Words*
+field that's the only reliable source (LoRA `.safetensors` files
+don't reliably store trigger metadata — `ss_tag_frequency` etc. are
+present but trigger fields aren't standardized).
+
+| LoRA | OLD (guess) | NEW (Civitai-official) |
+|---|---|---|
+| **worstimever** ([135316](https://civitai.com/models/135316)) | `DD-wte artstyle, worst-im-ever cartoon doodle` | `WTE artstyle` |
+| **mspaint_portraits** ([183354](https://civitai.com/models/183354)) | `MSPaint drawing of` | `MSPaint drawing` |
+
+Same `EVENT`, same `prompt_seed=100`, same `DIFFUSION_SEED=42`. Only
+the trigger phrase changes column-to-column:
+
+| LoRA | OLD trigger | NEW trigger |
+| --- | --- | --- |
+| **worstimever** | ![](samples/trig_worstimever_OLD.png) | ![](samples/trig_worstimever_NEW.png) |
+| **mspaint_portraits** | ![](samples/trig_mspaint_portraits_OLD.png) | ![](samples/trig_mspaint_portraits_NEW.png) |
+
+Findings:
+
+- **worstimever**: OLD and NEW produce nearly identical results.
+  `WTE` is a unique training token; even when wrapped in our extra
+  text it still cross-attended cleanly. So our previous output wasn't
+  broken — but `WTE artstyle` is the simpler, official, correct form
+  and is now what `LORA_TRIGGERS["worstimever"]` ships.
+- **mspaint_portraits**: OLD and NEW differ noticeably. `MSPaint
+  portrait` injects a foreground person figure (the LoRA was trained
+  on portraits). Our scenes are *places*, not portraits, so we
+  switched to the other officially-listed trigger
+  `MSPaint drawing` — same activation, no person inserted.
+- **General rule**: Civitai page → "Trigger Words" field is the
+  only authoritative source. `.safetensors` metadata has dim/base info
+  but no trigger field. Always verify before adding a new LoRA.
+
+License sanity also re-checked at the same time:
+
+- worstimever (135316) — 4 of 5 permission icons green; only model
+  resale is denied. Commercial use of generated images allowed.
+- mspaint_portraits (183354) — 4 of 5 green; merge-sharing denied.
+- Both fine for our use (we fuse the LoRA and ship generated images
+  only — no merging, no LoRA file redistribution).
+
+Driver: [scripts/trigger_correctness_check.py](scripts/trigger_correctness_check.py).
+
 ## Why the data-only LoRA cells looked identical — sanity check
 
 User asked: *if a LoRA is fused at scale 0.9, why does the output look

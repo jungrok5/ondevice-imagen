@@ -38,8 +38,14 @@ from dataclasses import dataclass
 # do not edit unless the LoRA is replaced.
 LORA_TRIGGERS: dict[str, str] = {
     "none":               "",
-    "worstimever":        "DD-wte artstyle, worst-im-ever cartoon doodle",
-    "mspaint_portraits":  "MSPaint drawing of",
+    # worstimever — civitai.com/models/135316 — "WTE artstyle"
+    "worstimever":        "WTE artstyle",
+    # mspaint_portraits — civitai.com/models/183354 — both "MSPaint
+    # portrait" and "MSPaint drawing" are official triggers. We use
+    # `MSPaint drawing` because our use case renders SCENES not
+    # portraits, and `portrait` was empirically observed to insert a
+    # foreground person figure (see scripts/trigger_correctness_check.py).
+    "mspaint_portraits":  "MSPaint drawing",
     "lah_cute_social":    "cute doodle,",
     "pixel_art_xl":       "pixel art,",
     # Speed LoRAs (Lightning, Hyper-SD) take no trigger — they modify
