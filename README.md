@@ -10,6 +10,55 @@ that lets us try a checkpoint, look at the result, and decide whether it
 is worth carrying to mobile. The committed `samples/` images and the
 notes below are the actual research output.
 
+## Raw LoRA capability — what each LoRA actually does
+
+We had been showing 하찮은-style results that looked like the LoRAs
+were delivering the trend register. Stripping every additional
+prefix (no STYLE_TAGS, no NEGATIVE prompt, no event-data translation)
+and using only `{LoRA-card trigger}, {minimal subject}` reveals the
+load was actually being carried by our prefix, not the LoRAs.
+
+Same subject across all five cells: `a young man holding a coffee
+cup at a cafe table`. Same seed. Base = SDXL-Turbo (cleanest LoRA
+expression).
+
+| cell | trigger only | result |
+|---|---|---|
+| no LoRA (baseline) | (none) | ![](samples/raw_lora_00_baseline_no_lora.png) |
+| **worstimever** | `DD-wte artstyle, ` | ![](samples/raw_lora_01_worstimever.png) |
+| **mspaint_portraits** | `MSPaint drawing of ` | ![](samples/raw_lora_02_mspaint_portraits.png) |
+| **pixel_art_xl** | `pixel art, ` | ![](samples/raw_lora_03_pixel_art_xl.png) |
+| **lah_cute_social** | `cute doodle, ` | ![](samples/raw_lora_04_lah_cute_social.png) |
+
+### Honest finding
+
+- **baseline**: clean photorealistic cafe scene — SDXL-Turbo default.
+- **worstimever**: a *clean* cartoon man at a cafe. Slightly wonky
+  proportions but the deliberately-bad doodle character does NOT
+  appear from just the `DD-wte artstyle` trigger.
+- **mspaint_portraits**: a polished magazine-style illustration. There
+  is nothing MS-Paint-like in the output. The name is misleading.
+- **pixel_art_xl**: does what it says. Consistent retro pixel art.
+- **lah_cute_social**: anime/manga-leaning character output, behaves
+  like a subject LoRA more than a style filter.
+
+**The "한심한" register in our earlier rounds was carried by our
+STYLE_TAGS prefix**:
+
+```
+ugly MS Paint doodle, white paper, black ink only,
+pixelated low-res, child scribble, jagged shaky lines,
+naive crude drawing
+```
+
+LoRAs were adding *minor flavour on top*. If the goal is the
+deliberately-bad doodle aesthetic, the prefix is the load-bearing
+piece — and we may not even need a LoRA at all, or we should
+specifically search for a LoRA trained on actual deliberately-bad
+drawings (vs. these which turn out to be generic cartoon styles).
+
+Driver: [scripts/compare_loras_raw.py](scripts/compare_loras_raw.py).
+
 ## Lightning + style-LoRA quality fixes — A/B/C/D shootout
 
 Earlier round flagged a real gap: SDXL-Turbo + worstimever (v10)
