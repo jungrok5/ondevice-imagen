@@ -530,8 +530,78 @@ then run ONNX Runtime on the phone with the NNAPI / QNN delegate.
 | **3** | fp16 cast | [scripts/quantize_onnx_step3.py](scripts/quantize_onnx_step3.py) | ⏸ blocked on PC stack (onnxconverter-common type-binding errors + ORT SD optimizer needs CUDA EP). Decision: ship fp32 + retry fp16 in Step 5 with manual ORT InferenceSession |
 | **4** | bundle to phone | `adb push` to `/sdcard/Android/data/<pkg>/files/onnx/` | ✅ 77 s @ 52.7 MB/s. Distribution path (HF Hub / CDN) deferred |
 | **5a** | Kotlin ORT loader probe — open each sub-model, log schemas | [InferenceForegroundService.kt](android-plugin/draw_moment_plugin/src/main/java/com/jungrok5/drawmoment/InferenceForegroundService.kt) | ✅ all 4 ONNX sub-models load on Note 10+ |
-| **5b–5c** | CLIP tokenizer + DPM++ scheduler + real UNet loop + write PNG | (next) | — |
-| **6** | NNAPI / QNN delegate | (next) | — |
+| **5b-1** | CLIP byte-level BPE tokenizer | [ClipTokenizer.kt](android-plugin/draw_moment_plugin/src/main/java/com/jungrok5/drawmoment/ClipTokenizer.kt) | ✅ ids byte-identical to `transformers.CLIPTokenizer` |
+| **5b-2** | text_encoder.run on phone | (probe in InferenceForegroundService) | ✅ BOS row [0,0,0..7] identical to PC ORT |
+| **5b-3a** | Karras σ schedule | [DpmScheduler.kt](android-plugin/draw_moment_plugin/src/main/java/com/jungrok5/drawmoment/DpmScheduler.kt) | ✅ all 13 σ values within ~1e-5 of `diffusers` |
+| **5b-3b** | Euler-Karras step() | (same file) | ✅ canned step output identical to PC `EulerDiscreteScheduler` |
+| **5b-4a** | UNet single forward pass | (probe + scripts/unet_reference.py) | ✅ bit-perfect output match PC ORT, ~25 s/step on Note 10+ |
+| **5c** | full pipeline replaces Phase 1 fake delay | [SdInferencePipeline.kt](android-plugin/draw_moment_plugin/src/main/java/com/jungrok5/drawmoment/SdInferencePipeline.kt) | ✅ **first real on-device SD 1.5 PNG, ~14 min on CPU** |
+| **6** | NNAPI / QNN delegate, DPM++ 2M, fp16 retry | (next) | — |
+
+### Step 5c — first real on-device PNG
+
+After all the component pieces matched PC reference (tokenizer,
+text_encoder, Karras schedule, Euler step, UNet single pass),
+[SdInferencePipeline.kt](android-plugin/draw_moment_plugin/src/main/java/com/jungrok5/drawmoment/SdInferencePipeline.kt)
+strings them together and replaces Phase 1's `Thread.sleep(30_000)`
++ placeholder bitmap with the real loop:
+
+```
+CLIP tokenize prompt + "" (uncond)
+  → text_encoder.run × 2
+Karras σ schedule (n=12)
+gaussian latent at σ_max  (seed = prompt.hashCode())
+for k in 0..11:
+  scaled = sample / sqrt(σ_k² + 1)        # scale_model_input
+  UNet.run batch=2 [uncond, cond]
+  noise = uncond + 7.5 × (cond - uncond)  # CFG
+  sample = sample + (σ_k+1 - σ_k) × noise # Euler-Karras
+vae_decoder.run(sample / 0.18215)
+[-1,1] CHW → uint8 HWC → Bitmap → PNG
+```
+
+End-to-end on Note 10+ CPU EP (fp32): **~14 min wall clock**
+(text_encoder ~0.3 s, UNet 12 × CFG-batched ~65 s ≈ 13 min,
+VAE+PNG ~6 s). Fits the "device idle, charging, background-job"
+envelope from
+[docs/mobile-architecture.md](docs/mobile-architecture.md) — not
+interactive yet, but acceptable for the weekly-postcard use case
+the project is aiming at.
+
+Bug found in the first pass: the ORT pipeline produced a flat
+brown square. `EulerDiscreteScheduler` divides the sample by
+`sqrt(σ² + 1)` before passing it to UNet (`scale_model_input`);
+skipping that step makes UNet's noise prediction the wrong
+magnitude and the trajectory collapses. Fix: scale only the
+UNet input; the Euler step itself still runs on the raw
+(unscaled) latent.
+
+| ONNX-written PNG (512×512) | Phone UI (Godot result_rect) |
+| --- | --- |
+| ![](samples/phase2_step5c_first_real_phone_png.png) | ![](samples/phase2_step5c_phone_screen.png) |
+
+The picker was on `worstimever (doodle/SDXL)` for this run, so
+the prompt was `WTE artstyle, a scene at 명동, evening, clear
+weather, during spring, (2026-05-09 20:43)`. The baked LoRA is
+SD 1.5 NTY-drawing (`sd15_drawing_nty.safetensors` at scale 0.8,
+fused into the SD 1.5 base in [Step 1](#sd-15-lora-candidates--drawing-110244--inked-portrait-drawing-947591)),
+so the WTE trigger has no effect on the weights. Switching the
+phone picker to `pencil drawing NTY (SD1.5)` would put the
+matching `(style by NTY, drawing:1.2)` trigger into the prompt
+for stronger LoRA expression — that's a one-tap experiment, not
+a code change.
+
+What's still on the roadmap (Step 6 — quality + speed polish):
+
+- **NNAPI / QNN delegate**: route UNet through Note 10+'s Hexagon
+  DSP. ORT's `addNnapi()` / QNN EP could plausibly drop step
+  latency from ~65 s to ~5 s.
+- **DPM++ 2M Karras** scheduler port: 12 steps land closer to
+  the PC reference cells visually (Euler is rougher).
+- **fp16 retry**: with manual ORT InferenceSession we can pass
+  fp16 IO and sidestep [Step 3's PC-side type-binding
+  failures](#sd-15-lora-candidates--drawing-110244--inked-portrait-drawing-947591),
+  cutting the bundle from 4.27 GB toward ~2 GB.
 
 ### Step 1 → Step 2: same e2 cell, two pipes
 
