@@ -79,13 +79,16 @@ func _build_ui() -> void:
 	refresh_button = Button.new()
 	refresh_button.text = "↻"
 	refresh_button.tooltip_text = "Re-fetch weather + place from new lat/lon"
+	refresh_button.custom_minimum_size = Vector2(56, 56)
+	refresh_button.add_theme_font_size_override("font_size", 24)
 	refresh_button.pressed.connect(_on_refresh_pressed)
 	loc_row.add_child(refresh_button)
 
 	# Generate
 	generate_button = Button.new()
 	generate_button.text = "Draw this moment"
-	generate_button.custom_minimum_size = Vector2(0, 56)
+	generate_button.custom_minimum_size = Vector2(0, 96)
+	generate_button.add_theme_font_size_override("font_size", 28)
 	generate_button.pressed.connect(_on_generate_pressed)
 	root.add_child(generate_button)
 
@@ -103,7 +106,7 @@ func _build_ui() -> void:
 	# Detail (output path / error message)
 	detail_label = Label.new()
 	detail_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	detail_label.add_theme_font_size_override("font_size", 11)
+	detail_label.add_theme_font_size_override("font_size", 16)
 	root.add_child(detail_label)
 
 	# Result image
@@ -116,9 +119,10 @@ func _build_ui() -> void:
 
 func _row(parent: Node, label: String) -> HBoxContainer:
 	var hbox := HBoxContainer.new()
+	hbox.custom_minimum_size = Vector2(0, 56)
 	var lbl := Label.new()
 	lbl.text = label
-	lbl.custom_minimum_size = Vector2(96, 0)
+	lbl.custom_minimum_size = Vector2(120, 0)
 	hbox.add_child(lbl)
 	parent.add_child(hbox)
 	return hbox

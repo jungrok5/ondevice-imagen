@@ -14,6 +14,19 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 
     <application>
+        <!--
+          Godot 4 discovers plugins via PackageManager.getApplicationInfo(GET_META_DATA),
+          NOT via Java ServiceLoader. The meta-data name MUST start with
+          "org.godotengine.plugin.v2." followed by the plugin's getPluginName(),
+          and value is the fully-qualified plugin class. Without this the AAR
+          ships in the APK but Engine.has_singleton("DrawMomentPlugin") returns
+          false at runtime — silent failure. (Confirmed by disassembling
+          GodotPluginRegistry.class in Godot 4.6.2.)
+        -->
+        <meta-data
+            android:name="org.godotengine.plugin.v2.DrawMomentPlugin"
+            android:value="com.jungrok5.drawmoment.DrawMomentPlugin" />
+
         <!-- Long-running inference Foreground Service. -->
         <service
             android:name=".InferenceForegroundService"
