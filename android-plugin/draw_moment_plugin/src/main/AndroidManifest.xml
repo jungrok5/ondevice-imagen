@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Foreground Service for the long inference job (1–15 min on
+         Note 10+). Without this Android 12+ kills mid-job. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- Notification post permission (Android 13+). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Open-Meteo + Nominatim HTTP. Godot's HTTPRequest also needs this. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- GPS — phase 2 ContextProvider native bridge will use this. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+
+    <application>
+        <!-- Long-running inference Foreground Service. -->
+        <service
+            android:name=".InferenceForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+    </application>
+
+</manifest>

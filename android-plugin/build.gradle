@@ -1,0 +1,7 @@
+// Top-level build file; per-module overrides live in
+// draw_moment_plugin/build.gradle. We pin AGP and Kotlin to versions
+// that match the Godot 4.6 plugin SDK (compileOnly dep below).
+plugins {
+    id 'com.android.library' version '8.5.2' apply false
+    id 'org.jetbrains.kotlin.android' version '1.9.24' apply false
+}

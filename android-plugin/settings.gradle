@@ -1,0 +1,23 @@
+// Settings for the local-ai-rnd Android plugin.
+// Same gradle invocation as WaterBloom: `gradlew assembleRelease` produces
+// android-plugin/draw_moment_plugin/build/outputs/aar/draw_moment_plugin-release.aar
+// which we then drop into client/android/plugins/ for Godot to pick up.
+
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.name = "draw_moment_plugin_root"
+include ':draw_moment_plugin'
