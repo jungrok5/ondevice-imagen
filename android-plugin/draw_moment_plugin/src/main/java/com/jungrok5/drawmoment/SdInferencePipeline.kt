@@ -55,7 +55,7 @@ class SdInferencePipeline(
 
         val teSession = ortEnv.createSession(
             File(baseDir, "text_encoder/model.onnx").absolutePath,
-            OrtSession.SessionOptions(),
+            sessionOptions(),
         )
         val condHidden   = runTextEncoder(teSession, condIds)
         val uncondHidden = runTextEncoder(teSession, uncondIds)
@@ -81,7 +81,7 @@ class SdInferencePipeline(
         //    runs on the *raw* (unscaled) latent.
         val unetSession = ortEnv.createSession(
             File(baseDir, "unet/model.onnx").absolutePath,
-            OrtSession.SessionOptions(),
+            sessionOptions(),
         )
         try {
             for (k in 0 until numInferenceSteps) {
@@ -110,7 +110,7 @@ class SdInferencePipeline(
         // 4) VAE decode the final latent.
         val vaeSession = ortEnv.createSession(
             File(baseDir, "vae_decoder/model.onnx").absolutePath,
-            OrtSession.SessionOptions(),
+            sessionOptions(),
         )
         val image: FloatArray
         try {
@@ -133,6 +133,18 @@ class SdInferencePipeline(
         val elapsed = System.currentTimeMillis() - totalT0
         Log.d(TAG, "pipe: PNG saved to $outputPath ($elapsed ms total)")
         return elapsed
+    }
+
+    /** SessionOptions tuned for lower peak RSS — at the cost of a small
+     *  speed hit. Pattern optimization preallocates intermediate tensors
+     *  and the CPU arena hangs onto big slabs across sessions; both make
+     *  Android's lowmemorykiller more likely to evict us mid-inference
+     *  when the device already has lots of background apps resident. */
+    private fun sessionOptions(): OrtSession.SessionOptions {
+        val opts = OrtSession.SessionOptions()
+        opts.setMemoryPatternOptimization(false)
+        opts.setCPUArenaAllocator(false)
+        return opts
     }
 
     // --- helpers ----------------------------------------------------------
