@@ -59,6 +59,13 @@ LORA_TRIGGERS: dict[str, str] = {
     "simple_toons":           "a simple cartoon illustration, clean lineart",  # 2007180
     "jackledead_artstyle":    "POP ART, DRAWING",                          # 783895 (LoRA has 50+ listed; we pick safe non-NSFW subset)
     "japanese_illustration":  "AKINO",                                     # 1841264
+    # SD 1.5 candidates (Drawing 110244, Inked Portrait 947591). The SDXL
+    # base used by lora_catalog.py will reject these at load_lora_weights
+    # with module-mismatch — they are only usable from sd15_lora_compare.py
+    # (SD 1.5 base). Listed here so the trigger phrase has a single source
+    # of truth.
+    "sd15_drawing_nty":       "(style by NTY, drawing:1.2)",               # 110244
+    "sd15_inked_portrait":    "Illustration, portait style, black and white, line, ink, sketch",  # 947591
     # legacy no-LoRA aliases kept for older scripts
     "lah_cute_social":        "cute doodle,",
     "pixel_art_xl":           "pixel art,",

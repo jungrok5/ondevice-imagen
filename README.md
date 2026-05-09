@@ -431,6 +431,88 @@ product the base needs to flip to SDXL 1.0 base / SD 1.5 / FLUX.1
 schnell (Apache 2.0, fully commercial-safe). v10 stands as a
 prototype/research milestone.
 
+## SD 1.5 LoRA candidates — `drawing` (110244) + `inked-portrait-drawing` (947591)
+
+Two new candidates the user asked us to evaluate are **SD 1.5 only**.
+The SDXL-Turbo grid above can't load them (`load_lora_weights` rejects
+SD 1.5 LoRAs against an SDXL base with a module-mismatch error), so
+they get a parallel grid on a SD 1.5 vanilla base. Same 5 events as
+[samples/lora_catalog.md](samples/lora_catalog.md).
+
+| run | base | sampler | steps | CFG | size | seed | `prompt_seed` |
+|---|---|---|---|---|---|---|---|
+| this grid | `stable-diffusion-v1-5` | DPM++ 2M Karras | 12 | 7.0 | 512×512 | 42 | 7 |
+| SDXL catalog (above) | `sdxl-turbo` | (Turbo default) | 4 | 0.0 | 512×512 | 42 | 7 |
+
+| event | data |
+| --- | --- |
+| `e1_morning_home_livingroom` | 08:00 / 맑음 / 2026-04-12 / 거실 |
+| `e2_evening_cafe_rain` | 20:00 / 비 / 2026-10-08 / 광화문 카페 |
+| `e3_summer_river_night` | 22:00 / 맑음 / 2026-07-20 / 한강공원 |
+| `e4_winter_market_noon` | 12:30 / 눈 / 2026-01-15 / 광장시장 |
+| `e5_indoor_library_afternoon` | 15:00 / 흐림 / 2026-09-25 / 도서관 |
+
+### `drawing` 110244 — trigger `(style by NTY, drawing:1.2)`, scale 0.8
+
+The emphasize-syntax trigger mirrors the example image the user picked
+on the LoRA's Civitai page (both phrases bracketed together at weight
+1.2). 405 MB. NSFW level 13 — moderate-prompt control needed for app.
+
+| e1 morning home | e2 cafe rain | e3 river night | e4 snow market | e5 autumn library |
+| --- | --- | --- | --- | --- |
+| ![](samples/sd15_compare_sd15_drawing_nty__e1_morning_home_livingroom.png) | ![](samples/sd15_compare_sd15_drawing_nty__e2_evening_cafe_rain.png) | ![](samples/sd15_compare_sd15_drawing_nty__e3_summer_river_night.png) | ![](samples/sd15_compare_sd15_drawing_nty__e4_winter_market_noon.png) | ![](samples/sd15_compare_sd15_drawing_nty__e5_indoor_library_afternoon.png) |
+
+### `inked-portrait-drawing` 947591 — trigger `Illustration, portait style, black and white, line, ink, sketch`, scale 0.9
+
+37 MB (much smaller than 110244). Triggers are alternatives on the
+Civitai page — we feed all the descriptive ones together for
+maximum stylistic push. Author recommends pairing with Counterfeit-V3.0
+or Blazing-Drive (both SD 1.5 illustration checkpoints) — we used
+vanilla SD 1.5 here so the LoRA effect is isolated, not amplified.
+
+| e1 morning home | e2 cafe rain | e3 river night | e4 snow market | e5 autumn library |
+| --- | --- | --- | --- | --- |
+| ![](samples/sd15_compare_sd15_inked_portrait__e1_morning_home_livingroom.png) | ![](samples/sd15_compare_sd15_inked_portrait__e2_evening_cafe_rain.png) | ![](samples/sd15_compare_sd15_inked_portrait__e3_summer_river_night.png) | ![](samples/sd15_compare_sd15_inked_portrait__e4_winter_market_noon.png) | ![](samples/sd15_compare_sd15_inked_portrait__e5_indoor_library_afternoon.png) |
+
+### Reads
+
+- **drawing 110244 (NTY)** — pencil-on-paper texture comes through
+  clearly, with the partial color bleed the example image shows
+  (orange trees, yellow car). The emphasize-1.2 trigger is doing real
+  work — at scale 0.8 + weight 1.2 the LoRA is visibly dominating the
+  base. Closest match to the user's "이거 마음에 든다" reference.
+- **inked-portrait 947591** — black-and-white ink line drawing, more
+  illustrative-storyboard than portrait despite the trigger word.
+  Line-only aesthetic, no color bleed. A different visual direction
+  from 110244 — sparser, more graphic, less "warm sketchbook".
+
+Both LoRAs render cleanly across all 5 events at 12 steps — no
+broken cells, no module-mismatch failures. CLIP-77 truncation
+warning fired on long prompts (the negative tail gets clipped) — the
+images came out fine anyway because the truncated portion is just
+generic style tags also implied by the LoRA trigger.
+
+### License (both 5/5 green on Civitai, verified 2026-05-09)
+
+Both LoRAs pass the project's commercial-use gate. From the Civitai
+API metadata (`allowCommercialUse: [Image, RentCivit, Rent, Sell]`,
+`allowDerivatives: true`, `allowDifferentLicense: true`,
+`allowNoCredit: true`):
+
+| | sell images ($) | paid services (🖌️) | no credit (👤) | share merges (🔀) | sell model (📄) |
+|---|---|---|---|---|---|
+| `drawing` 110244 | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `inked-portrait-drawing` 947591 | ✅ | ✅ | ✅ | ✅ | ✅ |
+
+Caveat: `drawing` 110244 has `nsfwLevel: 13` (Civitai's bitmask flags
+R + X content possible) — the example image on the LoRA page itself
+includes "sheer clothing draped over perky breasts", suggesting some
+NSFW-leaning training data. Mobile-app deployment will need
+prompt-side and post-filter NSFW gating regardless of LoRA license.
+
+Driver: [scripts/sd15_lora_compare.py](scripts/sd15_lora_compare.py).
+Full grid + per-cell prompts: [samples/sd15_compare_grid.md](samples/sd15_compare_grid.md).
+
 ## Single-event flow — button press → prompt → image
 
 The actual product flow when the user presses the "draw this moment"

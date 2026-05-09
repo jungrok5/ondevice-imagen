@@ -24,14 +24,25 @@ const ContextProvider := preload("res://scripts/context_provider.gd")
 # (display_label, lora_id, trigger_phrase) — trigger gets prepended to the
 # user's prompt when "Build prompt" is pressed. lora_id is what Phase 2
 # will pass to the native Worker so it picks the right .safetensors at
-# inference time.
+# inference time. Label suffix tells the user which base the LoRA expects
+# (SDXL vs SD1.5) — Phase 2 has to pick ONE base to bundle, so this
+# picker is for comparing aesthetics, not for runtime mixing.
 const LORA_PRESETS: Array = [
-	["none — base SDXL",        "",                       ""],
-	["worstimever (doodle)",    "worstimever_xl",         "WTE artstyle"],
-	["MS Paint portrait",       "sdxl_mspaint_portraits", "MSPaint portrait"],
-	["doodle-style (BTT)",      "doodle-style",           "SDXL_BTT_Doodle_v01"],
-	["simple toons clean line", "simple-toons-style-sdxl",
+	["none — base SDXL",            "",                       ""],
+	["worstimever (doodle/SDXL)",   "worstimever_xl",         "WTE artstyle"],
+	["MS Paint portrait (SDXL)",    "sdxl_mspaint_portraits", "MSPaint portrait"],
+	["doodle-style BTT (SDXL)",     "doodle-style",           "SDXL_BTT_Doodle_v01"],
+	["simple toons clean line (SDXL)", "simple-toons-style-sdxl",
 		"a simple cartoon illustration, clean lineart"],
+	# SD 1.5 candidates the user wants to evaluate alongside the SDXL ones.
+	# Drawing 110244: emphasize syntax (style by NTY, drawing:1.2) is the
+	# pattern from the example image the user liked — both triggers
+	# bracketed together with weight 1.2.
+	["pencil drawing NTY (SD1.5)",  "sd15_drawing_nty",       "(style by NTY, drawing:1.2)"],
+	# Inked Portrait 947591: 7 alt triggers; we use the most descriptive
+	# subset that conveys the ink-line-portrait aesthetic.
+	["inked portrait (SD1.5)",      "sd15_inked_portrait",
+		"Illustration, portait style, black and white, line, ink, sketch"],
 ]
 
 var ctx_provider: ContextProvider
