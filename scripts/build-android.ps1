@@ -48,6 +48,24 @@ Write-Host "[android] Step 2/3 — Syncing AAR to client/addons/" -ForegroundCol
 Copy-Item $srcAar (Join-Path $addons "draw_moment_plugin.aar") -Force
 Copy-Item $srcAar (Join-Path $addons "draw_moment_plugin\draw_moment_plugin.aar") -Force
 
+# Godot's Android template does fileTree(dir: addons, include: '*.aar')
+# which only picks up the AARs that physically sit in addons/. Our
+# plugin AAR's transitive dependency on onnxruntime-android (Phase 2)
+# isn't followed, so the runtime libonnxruntime.so + Java classes
+# never make it into the APK. Copy the ORT AAR straight from Gradle's
+# downloaded-artifacts cache so Godot's template picks it up.
+$ortAar = Get-ChildItem `
+    "$env:USERPROFILE\.gradle\caches\modules-2\files-2.1\com.microsoft.onnxruntime\onnxruntime-android\1.19.2" `
+    -Recurse -Filter "*.aar" -ErrorAction SilentlyContinue | Select-Object -First 1
+if ($ortAar) {
+    Copy-Item $ortAar.FullName (Join-Path $addons "onnxruntime-android.aar") -Force
+    $ortMb = [math]::Round($ortAar.Length / 1MB, 1)
+    Write-Host "[android]   + onnxruntime-android.aar ($ortMb MB)" -ForegroundColor DarkGreen
+} else {
+    Write-Host "[android] ORT AAR not in gradle cache yet — Step 1 should have downloaded it" -ForegroundColor Red
+    exit 1
+}
+
 if (Test-Path $outputApk) { Remove-Item $outputApk -Force }
 
 Write-Host "[android] Step 3/3 — Exporting debug APK via Godot" -ForegroundColor Cyan

@@ -513,6 +513,87 @@ prompt-side and post-filter NSFW gating regardless of LoRA license.
 Driver: [scripts/sd15_lora_compare.py](scripts/sd15_lora_compare.py).
 Full grid + per-cell prompts: [samples/sd15_compare_grid.md](samples/sd15_compare_grid.md).
 
+## Phase 2 — on-device SD 1.5 inference (in progress)
+
+After Phase 1 validated the workflow on Note 10+ with a fake 30 s
+sleep + placeholder PNG, Phase 2 wires real Stable Diffusion 1.5
+inference into the same `InferenceForegroundService`. Plan from
+[docs/mobile-architecture.md](docs/mobile-architecture.md): bake
+LoRA into the SD 1.5 base on PC (Core ML / MediaPipe / ORT Mobile
+all reject runtime LoRA injection), export to ONNX, cast to fp16,
+then run ONNX Runtime on the phone with the NNAPI / QNN delegate.
+
+| step | what | where | result |
+|---|---|---|---|
+| **1** | merge `sd15_drawing_nty.safetensors` (scale 0.8) into SD 1.5 → fp16 diffusers dir | [scripts/merge_lora_for_phase2.py](scripts/merge_lora_for_phase2.py) | ✅ verify cell pixel-identical to grid e2 (`pixel-diff bbox = None`) — fuse_lora is deterministic |
+| **2** | ONNX export of fused dir | [scripts/_convert_sd_to_onnx.py](scripts/_convert_sd_to_onnx.py) (patched diffusers v0.30.3 official) | ✅ 4.27 GB fp32 (UNet 3.3 GB + TE 470 MB + VAE 320 MB). Verify cell shows pencil + partial color through ONNX runtime |
+| **3** | fp16 cast | [scripts/quantize_onnx_step3.py](scripts/quantize_onnx_step3.py) | ⏸ blocked on PC stack (onnxconverter-common type-binding errors + ORT SD optimizer needs CUDA EP). Decision: ship fp32 + retry fp16 in Step 5 with manual ORT InferenceSession |
+| **4** | bundle to phone | `adb push` to `/sdcard/Android/data/<pkg>/files/onnx/` | ✅ 77 s @ 52.7 MB/s. Distribution path (HF Hub / CDN) deferred |
+| **5a** | Kotlin ORT loader probe — open each sub-model, log schemas | [InferenceForegroundService.kt](android-plugin/draw_moment_plugin/src/main/java/com/jungrok5/drawmoment/InferenceForegroundService.kt) | ✅ all 4 ONNX sub-models load on Note 10+ |
+| **5b–5c** | CLIP tokenizer + DPM++ scheduler + real UNet loop + write PNG | (next) | — |
+| **6** | NNAPI / QNN delegate | (next) | — |
+
+### Step 1 → Step 2: same e2 cell, two pipes
+
+Both verify cells were generated for `e2_evening_cafe_rain` (광화문
+카페, 비, 20:00, 2026-10-08) using the fused base+LoRA at
+`scale=0.8`, DPM++ 2M Karras, 12 steps, CFG 7, 512×512.
+
+| Step 1 — fp32 PyTorch fused pipe | Step 2 — fp32 ONNX runtime |
+| --- | --- |
+| ![](samples/phase2_step1_fused_verify_e2_evening_cafe_rain.png) | ![](samples/phase2_step2_onnx_verify_e2_evening_cafe_rain.png) |
+| pencil + warm color bleed (orange leaves, yellow car) | pencil + warm sepia, ink-leaning lines |
+
+The two are *not* expected to match pixel-for-pixel: Step 1 uses
+`torch.Generator(seed=42)`, Step 2 uses `numpy.random.RandomState(42)`,
+which produce different latent noise even at the same seed value.
+What matters is the *aesthetic* — both clearly show the
+pencil-drawing-with-partial-color signature of the
+`(style by NTY, drawing:1.2)` trigger, and both correctly anchor
+to the cafe / rain / evening / autumn prompt context. LoRA fuse
+survived the diffusers → ONNX conversion intact.
+
+### Step 5a — Note 10+ ORT probe
+
+After `adb push` of the 4.27 GB ONNX bundle and a rebuild that
+adds `com.microsoft.onnxruntime:onnxruntime-android:1.19.2`
+(via [scripts/build-android.ps1](scripts/build-android.ps1) since
+Godot's Android template doesn't follow `.aar` transitive deps —
+APK 75 → 93 MB), pressing **Generate** triggers
+`InferenceForegroundService.probeOnnxModels()` which opens each
+sub-model in turn and logs its schema:
+
+```
+probe: text_encoder loaded — inputs=[input_ids]
+       outputs=[last_hidden_state, pooler_output]
+       input 'input_ids' shape=[batch,sequence] type=INT32
+
+probe: vae_encoder loaded — inputs=[sample]
+       outputs=[latent_sample]
+       input 'sample' shape=[B,C,H,W] type=FLOAT
+
+probe: vae_decoder loaded — inputs=[latent_sample]
+       outputs=[sample]
+       input 'latent_sample' shape=[B,C,H,W] type=FLOAT
+
+probe: unet loaded — inputs=[sample, timestep, encoder_hidden_states]
+       outputs=[out_sample]
+       input 'encoder_hidden_states' shape=[B,seq,768] type=FLOAT
+```
+
+**`encoder_hidden_states=768`** confirms SD 1.5 family (vs 1024
+for SD 2.x). UNet load takes ~5.7 s on Note 10+ (3.4 GB graph +
+weights memory-mapped); no OOM. After probe, the Phase 1 fake
+30 s sleep still runs and the placeholder PNG ships through
+the existing notification + result-rect path:
+
+![](samples/phase2_step5a_phone_probe_done.png)
+
+`elapsed 38.21 s` = 5.7 s probe + ~30 s fake sleep + ~2 s I/O. Step
+5b replaces `Thread.sleep(30_000)` + the placeholder bitmap with a
+CLIP tokenize → text_encoder.run → DPM++ 2M scheduler loop with
+UNet.run inside → vae_decoder.run → PNG encode pipeline.
+
 ## Single-event flow — button press → prompt → image
 
 The actual product flow when the user presses the "draw this moment"

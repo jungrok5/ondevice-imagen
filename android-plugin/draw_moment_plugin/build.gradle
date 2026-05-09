@@ -35,8 +35,10 @@ dependencies {
     implementation "androidx.core:core-ktx:1.13.1"
     implementation "androidx.work:work-runtime-ktx:2.9.1"
 
-    // ONNX Runtime Mobile (Android) — phase 2 wires this in. Pinned now
-    // so the build graph is ready when InferenceWorker switches from the
-    // fake delay to a real Session.run() call.
-    // implementation "com.microsoft.onnxruntime:onnxruntime-android:1.18.0"
+    // ONNX Runtime Android — Phase 2 Step 5. Pinned to 1.19.2 to match
+    // the PC Python side (where models/onnx/sd15_drawing_nty_scale0.8/
+    // was exported with onnxruntime 1.19.2). Full build, not -mobile,
+    // so all SD ops are guaranteed available; we'll switch to the
+    // -mobile build later if APK size becomes a concern.
+    implementation "com.microsoft.onnxruntime:onnxruntime-android:1.19.2"
 }
