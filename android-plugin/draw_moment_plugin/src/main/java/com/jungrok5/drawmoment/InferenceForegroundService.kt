@@ -78,6 +78,12 @@ class InferenceForegroundService : Service() {
         // via `adb push` for now; download-on-first-use comes later.
         probeOnnxModels()
 
+        // Phase 2 Step 5b-1: tokenize sanity. Runs ClipTokenizer
+        // against fixed sample inputs + the live `prompt` from the
+        // user, prints input_ids[0..15] for cross-check against
+        // transformers.CLIPTokenizer on the PC side.
+        probeTokenizer(prompt)
+
         Thread.sleep(30_000)
 
         val bmp = Bitmap.createBitmap(512, 512, Bitmap.Config.ARGB_8888)
@@ -158,6 +164,45 @@ class InferenceForegroundService : Service() {
             }
         }
         Log.d(TAG, "probe: done")
+    }
+
+    /** Phase 2 Step 5b-1 — encode a few prompts with the local
+     *  ClipTokenizer and dump the IDs. Verified against
+     *  transformers.CLIPTokenizer via scripts/clip_tokenizer_reference.py. */
+    private fun probeTokenizer(livePrompt: String) {
+        val tokDir = File(
+            getExternalFilesDir(null),
+            "onnx/sd15_drawing_nty_scale0.8/tokenizer",
+        )
+        Log.d(TAG, "tok: dir = $tokDir (exists=${tokDir.exists()})")
+        if (!tokDir.exists()) {
+            Log.w(TAG, "tok: tokenizer dir missing")
+            return
+        }
+        val tok = try {
+            ClipTokenizer(tokDir)
+        } catch (e: Throwable) {
+            Log.e(TAG, "tok: load FAILED: ${e.javaClass.simpleName}: ${e.message}", e)
+            return
+        }
+        val samples = listOf(
+            "a photo of a cat",
+            "a cat",
+            "(style by NTY, drawing:1.2)",
+            livePrompt,
+        )
+        for (s in samples) {
+            val ids = tok.encode(s, ClipTokenizer.MAX_LENGTH)
+            // Trim trailing pads for log clarity.
+            val firstPad = ids.indexOfFirst { it == ids.last() && it == ids[ids.size - 1] }
+            val nonPadEnd = (ids.size - 1 downTo 0).firstOrNull { ids[it] != ids[ids.size - 1] }
+                ?.let { it + 1 } ?: 1
+            val show = ids.copyOfRange(0, minOf(nonPadEnd + 1, 24))
+            Log.d(TAG, "tok: '${s.take(60)}' -> ${show.joinToString(",")}" +
+                if (nonPadEnd + 1 > 24) " ...(+more, total ${nonPadEnd + 1} non-pad)" else
+                " (${nonPadEnd + 1} non-pad)"
+            )
+        }
     }
 
     // --- Notifications -------------------------------------------------------
