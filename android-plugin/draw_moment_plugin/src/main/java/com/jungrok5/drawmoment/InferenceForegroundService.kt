@@ -18,6 +18,7 @@ import androidx.core.app.NotificationCompat
 import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
+import java.nio.FloatBuffer
 import java.nio.IntBuffer
 import java.io.File
 import java.io.FileOutputStream
@@ -97,6 +98,12 @@ class InferenceForegroundService : Service() {
         // diffusers.DPMSolverMultistepScheduler via
         // scripts/scheduler_reference.py — must match within 1e-5.
         probeScheduler()
+
+        // Phase 2 Step 5b-4a: single UNet forward pass. Hardcoded
+        // prompt "a cat" so PC reference (scripts/unet_reference.py)
+        // and phone produce identical input → output shapes/stats
+        // can be diff'd directly.
+        probeUNet()
 
         Thread.sleep(30_000)
 
@@ -216,6 +223,119 @@ class InferenceForegroundService : Service() {
                 if (nonPadEnd + 1 > 24) " ...(+more, total ${nonPadEnd + 1} non-pad)" else
                 " (${nonPadEnd + 1} non-pad)"
             )
+        }
+    }
+
+    /** Phase 2 Step 5b-4a — single forward pass through the UNet
+     *  with deterministic inputs. Confirms (a) all 3 input tensors
+     *  + 1 output tensor wire correctly, (b) inference completes
+     *  without OOM, (c) one-step latency on Note 10+ CPU.
+     *  Hardcoded prompt "a cat" so PC reference matches input. */
+    private fun probeUNet() {
+        val baseDir = File(
+            getExternalFilesDir(null),
+            "onnx/sd15_drawing_nty_scale0.8",
+        )
+        val tokDir = File(baseDir, "tokenizer")
+        val ortEnv = OrtEnvironment.getEnvironment()
+
+        // Encode the fixed prompt → input_ids → text_encoder → hidden_states
+        val ids = ClipTokenizer(tokDir).encode("a cat", ClipTokenizer.MAX_LENGTH)
+        val hiddenFlat: FloatArray
+        run {
+            var sess: OrtSession? = null
+            var idsTensor: OnnxTensor? = null
+            try {
+                sess = ortEnv.createSession(
+                    File(baseDir, "text_encoder/model.onnx").absolutePath,
+                    OrtSession.SessionOptions(),
+                )
+                idsTensor = OnnxTensor.createTensor(
+                    ortEnv, IntBuffer.wrap(ids), longArrayOf(1, ids.size.toLong()),
+                )
+                val out = sess.run(mapOf("input_ids" to idsTensor))
+                val hidden = out.get("last_hidden_state").get() as OnnxTensor
+                val n = hidden.info.shape.fold(1L) { acc, d -> acc * d }.toInt()
+                val flat = FloatArray(n)
+                hidden.floatBuffer.get(flat)
+                hidden.close()
+                out.close()
+                hiddenFlat = flat
+            } finally {
+                idsTensor?.close()
+                sess?.close()
+            }
+        }
+
+        // Build deterministic UNet inputs
+        val sampleArr = FloatArray(1 * 4 * 64 * 64) { 0.5f }
+        val timestepArr = floatArrayOf(999.0f)
+
+        var unet: OrtSession? = null
+        var sampleT: OnnxTensor? = null
+        var tsT: OnnxTensor? = null
+        var hiddenT: OnnxTensor? = null
+        try {
+            Log.d(TAG, "unet: opening UNet session...")
+            val openT0 = System.currentTimeMillis()
+            unet = ortEnv.createSession(
+                File(baseDir, "unet/model.onnx").absolutePath,
+                OrtSession.SessionOptions(),
+            )
+            Log.d(TAG, "unet: session open in ${System.currentTimeMillis() - openT0} ms")
+
+            sampleT = OnnxTensor.createTensor(
+                ortEnv, FloatBuffer.wrap(sampleArr), longArrayOf(1, 4, 64, 64),
+            )
+            tsT = OnnxTensor.createTensor(
+                ortEnv, FloatBuffer.wrap(timestepArr), longArrayOf(1),
+            )
+            hiddenT = OnnxTensor.createTensor(
+                ortEnv, FloatBuffer.wrap(hiddenFlat), longArrayOf(1, 77, 768),
+            )
+
+            Log.d(TAG, "unet: running 1 forward pass (sample=0.5, t=999, prompt='a cat')...")
+            val runT0 = System.currentTimeMillis()
+            val out = unet.run(mapOf(
+                "sample" to sampleT,
+                "timestep" to tsT,
+                "encoder_hidden_states" to hiddenT,
+            ))
+            val elapsed = System.currentTimeMillis() - runT0
+
+            val outSample = out.get("out_sample").get() as OnnxTensor
+            val outShape = outSample.info.shape
+            val n = outShape.fold(1L) { acc, d -> acc * d }.toInt()
+            val outFlat = FloatArray(n)
+            outSample.floatBuffer.get(outFlat)
+            outSample.close()
+            out.close()
+
+            // Stats
+            var sum = 0.0
+            var sumSq = 0.0
+            var mn = Float.POSITIVE_INFINITY
+            var mx = Float.NEGATIVE_INFINITY
+            for (v in outFlat) {
+                sum += v; sumSq += v.toDouble() * v.toDouble()
+                if (v < mn) mn = v
+                if (v > mx) mx = v
+            }
+            val mean = sum / n
+            val variance = sumSq / n - mean * mean
+            val stddev = if (variance > 0) Math.sqrt(variance) else 0.0
+            Log.d(TAG, "unet: shape=${outShape.joinToString("x")} elapsed=${elapsed} ms")
+            Log.d(TAG, "unet: stats mean=${"%.5f".format(mean)} std=${"%.5f".format(stddev)} " +
+                "min=${"%.5f".format(mn)} max=${"%.5f".format(mx)}")
+            Log.d(TAG, "unet: out[0,0,0,0..7]=" +
+                (0..7).joinToString(",") { "%.4f".format(outFlat[it]) })
+        } catch (e: Throwable) {
+            Log.e(TAG, "unet: FAILED ${e.javaClass.simpleName}: ${e.message}", e)
+        } finally {
+            sampleT?.close()
+            tsT?.close()
+            hiddenT?.close()
+            unet?.close()
         }
     }
 
