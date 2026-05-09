@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
@@ -40,7 +41,22 @@ class InferenceForegroundService : Service() {
         val outputPath = intent?.getStringExtra(EXTRA_OUTPUT_PATH) ?: ""
 
         ensureChannels()
-        startForeground(NOTIFICATION_ID_PROGRESS, buildProgressNotification(prompt))
+        // Android 14 (API 34, UPSIDE_DOWN_CAKE) made the foregroundServiceType
+        // argument mandatory at startForeground() call sites — declaring it
+        // in the manifest <service> tag isn't enough on its own. Without
+        // it, on Android 14/15 the service either throws
+        // MissingForegroundServiceTypeException at start, or silently runs
+        // briefly and gets killed by the system as soon as the app moves
+        // to the background (e.g. screen lock during a 14-min inference).
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            startForeground(
+                NOTIFICATION_ID_PROGRESS,
+                buildProgressNotification(prompt),
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
+            )
+        } else {
+            startForeground(NOTIFICATION_ID_PROGRESS, buildProgressNotification(prompt))
+        }
 
         thread(name = "inference-worker") {
             try {
