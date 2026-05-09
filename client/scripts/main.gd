@@ -1,18 +1,18 @@
 extends Control
 ##
-## Phase 1 main scene — verify the *workflow* end to end on Android:
+## Phase 1 main scene — verify the *workflow* end to end on Android,
+## and also serve as a hand-held testbed:
 ##
-##   button press
+##   [Build prompt]   ← bundles ctx + selected LoRA into an English prompt
 ##     ↓
-##   ContextProvider snapshot (date / time / weather / place / lat-lon)
+##   prompt TextEdit  ← editable, the user can hand-tune before sending
 ##     ↓
-##   DrawMomentPlugin.start_inference(prompt) — Kotlin Foreground Service
-##     ↓
-##   (~30 s of fake delay, no ONNX yet)
+##   [Generate]       ← starts the Foreground Service with the (possibly
+##                       edited) prompt + LoRA trigger
 ##     ↓
 ##   inference_completed signal + system notification
 ##     ↓
-##   user taps notification → app foregrounds → result screen shows the PNG
+##   result image + "elapsed: Xs" + "prompt sent: ..."
 ##
 ## Phase 2 will replace the fake-delay block inside the Worker with the
 ## real ONNX Runtime SD 1.5 inference. Everything else (UI, signal wire,
@@ -21,6 +21,19 @@ extends Control
 
 const ContextProvider := preload("res://scripts/context_provider.gd")
 
+# (display_label, lora_id, trigger_phrase) — trigger gets prepended to the
+# user's prompt when "Build prompt" is pressed. lora_id is what Phase 2
+# will pass to the native Worker so it picks the right .safetensors at
+# inference time.
+const LORA_PRESETS: Array = [
+	["none — base SDXL",        "",                       ""],
+	["worstimever (doodle)",    "worstimever_xl",         "WTE artstyle"],
+	["MS Paint portrait",       "sdxl_mspaint_portraits", "MSPaint portrait"],
+	["doodle-style (BTT)",      "doodle-style",           "SDXL_BTT_Doodle_v01"],
+	["simple toons clean line", "simple-toons-style-sdxl",
+		"a simple cartoon illustration, clean lineart"],
+]
+
 var ctx_provider: ContextProvider
 var draw_plugin   # Engine singleton from android-plugin/, may be null on desktop.
 
@@ -28,6 +41,9 @@ var draw_plugin   # Engine singleton from android-plugin/, may be null on deskto
 var lat_edit: LineEdit
 var lon_edit: LineEdit
 var refresh_button: Button
+var lora_picker: OptionButton
+var build_button: Button
+var prompt_edit: TextEdit
 var generate_button: Button
 var status_label: Label
 var ctx_label: Label
@@ -35,6 +51,7 @@ var detail_label: Label
 var result_rect: TextureRect
 
 var _last_output_path: String = ""
+var _started_at_msec: int = 0
 
 
 func _ready() -> void:
@@ -84,26 +101,51 @@ func _build_ui() -> void:
 	refresh_button.pressed.connect(_on_refresh_pressed)
 	loc_row.add_child(refresh_button)
 
+	# LoRA picker
+	var lora_row := _row(root, "LoRA")
+	lora_picker = OptionButton.new()
+	lora_picker.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	for i in LORA_PRESETS.size():
+		lora_picker.add_item(String(LORA_PRESETS[i][0]), i)
+	lora_picker.select(1)  # default to worstimever — most-tested style
+	lora_row.add_child(lora_picker)
+
+	# Build prompt button
+	build_button = Button.new()
+	build_button.text = "Build prompt from context"
+	build_button.custom_minimum_size = Vector2(0, 64)
+	build_button.add_theme_font_size_override("font_size", 20)
+	build_button.pressed.connect(_on_build_pressed)
+	root.add_child(build_button)
+
+	# Live context label (above the editable prompt — what we'll bundle)
+	ctx_label = Label.new()
+	ctx_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	root.add_child(ctx_label)
+
+	# Editable prompt — user can hand-tune before pressing Generate.
+	prompt_edit = TextEdit.new()
+	prompt_edit.placeholder_text = "Press [Build prompt] to fill, then edit freely before [Generate]."
+	prompt_edit.custom_minimum_size = Vector2(0, 220)
+	prompt_edit.add_theme_font_size_override("font_size", 18)
+	prompt_edit.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
+	root.add_child(prompt_edit)
+
 	# Generate
 	generate_button = Button.new()
-	generate_button.text = "Draw this moment"
+	generate_button.text = "Generate"
 	generate_button.custom_minimum_size = Vector2(0, 96)
 	generate_button.add_theme_font_size_override("font_size", 28)
 	generate_button.pressed.connect(_on_generate_pressed)
 	root.add_child(generate_button)
 
-	# Live context label
-	ctx_label = Label.new()
-	ctx_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	root.add_child(ctx_label)
-
-	# Status (busy / done / error)
+	# Status (busy / done / error / elapsed)
 	status_label = Label.new()
 	status_label.text = ("ready" if draw_plugin != null
 		else "ready (no native plugin — desktop build, fake delay only)")
 	root.add_child(status_label)
 
-	# Detail (output path / error message)
+	# Detail (output path / sent prompt / error message)
 	detail_label = Label.new()
 	detail_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	detail_label.add_theme_font_size_override("font_size", 16)
@@ -136,35 +178,110 @@ func _on_refresh_pressed() -> void:
 
 
 func _on_context_changed(ctx: Dictionary) -> void:
-	ctx_label.text = "ctx: %s · %s · %s · %s · %s" % [
+	var poi := String(ctx.get("poi_summary", ""))
+	if poi.is_empty():
+		poi = String(ctx.get("place_type", "?"))
+	ctx_label.text = "ctx: %s · %s · %s · %s · %s\nPOI: %s" % [
 		String(ctx.get("date", "?")),
 		String(ctx.get("time", "?")),
 		String(ctx.get("weather", "?")),
-		String(ctx.get("place_type", "?")),
 		String(ctx.get("season", "?")),
+		String(ctx.get("time_of_day", "?")),
+		poi,
 	]
 
+
+# --- Build prompt ------------------------------------------------------------
+
+func _on_build_pressed() -> void:
+	var ctx := ctx_provider.get_cached_context()
+	prompt_edit.text = _build_full_prompt(ctx, _selected_lora_trigger())
+
+
+func _selected_lora_trigger() -> String:
+	var idx := lora_picker.get_selected_id()
+	if idx < 0 or idx >= LORA_PRESETS.size():
+		return ""
+	return String(LORA_PRESETS[idx][2])
+
+
+func _selected_lora_id() -> String:
+	var idx := lora_picker.get_selected_id()
+	if idx < 0 or idx >= LORA_PRESETS.size():
+		return ""
+	return String(LORA_PRESETS[idx][1])
+
+
+func _build_full_prompt(ctx: Dictionary, lora_trigger: String) -> String:
+	# Compose a SD-friendly English prompt from everything ContextProvider
+	# managed to grab. Order matters for SD 1.5: trigger first, then the
+	# scene description, then mood / time / weather. POI noun phrase
+	# (e.g. "a cafe, Junggu, near Sejong-daero") goes near the front so
+	# the model anchors its composition to it.
+	var parts: Array = []
+	if lora_trigger.length() > 0:
+		parts.append(lora_trigger)
+
+	var poi := String(ctx.get("poi_summary", ""))
+	var place_type := String(ctx.get("place_type", ""))
+	var weather := String(ctx.get("weather", ""))
+	var season := String(ctx.get("season", ""))
+	var time_of_day := String(ctx.get("time_of_day", ""))
+	var date := String(ctx.get("date", ""))
+	var time_str := String(ctx.get("time", ""))
+
+	# Anchor sentence — concrete location if we have one, otherwise the
+	# 5-bucket place_type (cafe / library / market / river / home).
+	if poi.length() > 0:
+		parts.append("a scene at %s" % poi)
+	elif place_type.length() > 0:
+		parts.append("a scene at a %s" % place_type)
+
+	# Mood line — time of day + weather + season.
+	var mood: Array = []
+	if time_of_day.length() > 0:
+		mood.append(time_of_day)
+	if weather.length() > 0 and weather != "unknown":
+		mood.append(weather + " weather")
+	if season.length() > 0:
+		mood.append("during " + season)
+	if not mood.is_empty():
+		parts.append(", ".join(mood))
+
+	# Timestamp footnote — useful for "different result every day even at
+	# the same place" experiments. SD 1.5 mostly ignores numeric strings,
+	# but we keep them for the user's records (and to quietly perturb the
+	# prompt embedding so two same-context generations diverge).
+	if date.length() > 0 or time_str.length() > 0:
+		parts.append("(%s %s)" % [date, time_str])
+
+	return ", ".join(parts)
+
+
+# --- Generate ---------------------------------------------------------------
 
 func _on_generate_pressed() -> void:
-	var ctx := ctx_provider.get_cached_context()
-	# A minimal prompt string the worker will pass to inference. Exact
-	# format is finalised once the prompt builder is ported to the device
-	# (or kept on PC and shipped as a precomputed string per cell).
-	var prompt := "%s | %s | %s | %s | place=%s" % [
-		String(ctx.get("date", "")),
-		String(ctx.get("time", "")),
-		String(ctx.get("weather", "")),
-		String(ctx.get("season", "")),
-		String(ctx.get("place_type", "")),
-	]
-	# Output path the Worker writes the finished PNG to. Both desktop
-	# and Android should be able to write to user://.
+	var prompt := prompt_edit.text.strip_edges()
+	if prompt.is_empty():
+		# Convenience: pressing Generate without ever pressing Build is
+		# the common case, so build it on the fly.
+		var ctx := ctx_provider.get_cached_context()
+		prompt = _build_full_prompt(ctx, _selected_lora_trigger())
+		prompt_edit.text = prompt
+
+	# Output path the Worker writes the finished PNG to.
 	var out_path := "user://moment_%d.png" % int(Time.get_unix_time_from_system())
 	_last_output_path = out_path
+	_started_at_msec = Time.get_ticks_msec()
 
 	generate_button.disabled = true
-	status_label.text = "starting background inference..."
-	detail_label.text = "prompt: %s\noutput: %s" % [prompt, out_path]
+	build_button.disabled = true
+	status_label.text = "generating ..."
+	detail_label.text = "lora: %s\nprompt sent:\n%s\noutput: %s" % [
+		_selected_lora_id() if _selected_lora_id().length() > 0 else "(none)",
+		prompt,
+		out_path,
+	]
 
 	if draw_plugin != null:
 		draw_plugin.call("start_inference", prompt, ProjectSettings.globalize_path(out_path))
@@ -175,33 +292,33 @@ func _on_generate_pressed() -> void:
 
 
 func _on_inference_completed(output_path: String) -> void:
-	_load_result(output_path)
+	var elapsed_ms := Time.get_ticks_msec() - _started_at_msec
+	_load_result(output_path, elapsed_ms)
 	generate_button.disabled = false
+	build_button.disabled = false
 
 
 func _on_inference_failed(error_msg: String) -> void:
 	status_label.text = "FAILED: " + error_msg
 	generate_button.disabled = false
+	build_button.disabled = false
 
 
-func _load_result(path: String) -> void:
+func _load_result(path: String, elapsed_ms: int) -> void:
 	var img := Image.new()
 	# Worker writes an absolute fs path; convert back to a Godot virtual
 	# path for desktop runs.
 	var godot_path := path
+	var err: int
 	if not path.begins_with("user://") and not path.begins_with("res://"):
-		# `path` is already absolute; Image.load() accepts that.
-		var err := img.load(path)
-		if err != OK:
-			status_label.text = "PNG load error: %d" % err
-			return
+		err = img.load(path)
 	else:
-		var err := img.load(ProjectSettings.globalize_path(godot_path))
-		if err != OK:
-			status_label.text = "PNG load error: %d" % err
-			return
+		err = img.load(ProjectSettings.globalize_path(godot_path))
+	if err != OK:
+		status_label.text = "PNG load error %d at %s" % [err, path]
+		return
 	result_rect.texture = ImageTexture.create_from_image(img)
-	status_label.text = "done — " + path
+	status_label.text = "done — elapsed %.2fs — %s" % [elapsed_ms / 1000.0, path]
 
 
 # --- Desktop fallback ---------------------------------------------------------
@@ -222,3 +339,6 @@ func _desktop_fake_inference(prompt: String, out_path: String) -> void:
 		t.queue_free()
 	)
 	t.start()
+	# Touch `prompt` to silence "unused arg" warnings — it's logged in the
+	# detail label already.
+	prompt = prompt

@@ -121,10 +121,47 @@ func _on_geocode_response(result: int, code: int, _headers: PackedStringArray, b
 	_cached.place_type = _detect_place_type(address)
 	# Display name (Korean if available) for UI.
 	_cached.display_name = String(parsed.get("display_name", _cached.get("display_name", "")))
-	print("[Context] geo updated: country=%s place_type=%s" % [
-		String(_cached.country), String(_cached.place_type)
+	# Preserve the raw address dict so the prompt builder can mine
+	# road / suburb / city / building / amenity / leisure / tourism / etc.
+	_cached.address = address
+	# Build a short, human-readable POI summary (English where possible)
+	# that the prompt builder can splice straight into the SD prompt.
+	_cached.poi_summary = _build_poi_summary(address, _cached.display_name)
+	print("[Context] geo updated: country=%s place_type=%s poi=%s" % [
+		String(_cached.country), String(_cached.place_type), String(_cached.poi_summary)
 	])
 	context_changed.emit(get_cached_context())
+
+
+func _build_poi_summary(address: Dictionary, display_name: String) -> String:
+	# A few-word location label that captures what kind of place we're in,
+	# preferring the most specific tag available. SD prompts react well to
+	# concrete proper nouns ("Seoul City Hall") and concrete amenity names
+	# ("a cafe", "a riverside park") — so we hand both when we have them.
+	var parts: Array = []
+	var named: String = ""
+	for key in ["amenity", "leisure", "tourism", "historic", "shop",
+				"office", "building", "natural", "man_made", "public_building"]:
+		if address.has(key) and String(address[key]).length() > 0:
+			named = String(address[key]).replace("_", " ")
+			parts.append("a " + named)
+			break
+	# Most specific area name (suburb / neighbourhood / city / town).
+	for key in ["suburb", "neighbourhood", "quarter", "city_district",
+				"city", "town", "village", "county"]:
+		if address.has(key) and String(address[key]).length() > 0:
+			parts.append(String(address[key]))
+			break
+	if address.has("road") and String(address.road).length() > 0:
+		parts.append("near " + String(address.road))
+	if parts.is_empty() and display_name.length() > 0:
+		# Fallback: first 2 components of the comma-separated display_name.
+		var dn_parts: PackedStringArray = display_name.split(",")
+		if dn_parts.size() > 0:
+			parts.append(String(dn_parts[0]).strip_edges())
+		if dn_parts.size() > 1:
+			parts.append(String(dn_parts[1]).strip_edges())
+	return ", ".join(parts)
 
 
 func _detect_place_type(address: Dictionary) -> String:
@@ -157,14 +194,16 @@ func _detect_place_type(address: Dictionary) -> String:
 
 func _build_offline_context(lat: float, lon: float) -> Dictionary:
 	return {
-		"season":      _season_now(),
-		"time_of_day": _time_of_day_now(),
-		"weather":     "unknown",
-		"country":     "KR",
-		"place_type":  "home",
+		"season":       _season_now(),
+		"time_of_day":  _time_of_day_now(),
+		"weather":      "unknown",
+		"country":      "KR",
+		"place_type":   "home",
 		"display_name": "",
-		"lat":          lat,
-		"lon":          lon,
+		"address":      {},
+		"poi_summary":  "",
+		"lat":           lat,
+		"lon":           lon,
 	}
 
 
