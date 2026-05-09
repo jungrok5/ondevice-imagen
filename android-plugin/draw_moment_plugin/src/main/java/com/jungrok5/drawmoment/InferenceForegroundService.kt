@@ -92,6 +92,12 @@ class InferenceForegroundService : Service() {
         // scripts/text_encoder_reference.py.
         probeTextEncoder(prompt)
 
+        // Phase 2 Step 5b-3a: emit Karras sigma schedule from the
+        // local DpmScheduler implementation. Cross-checked against
+        // diffusers.DPMSolverMultistepScheduler via
+        // scripts/scheduler_reference.py — must match within 1e-5.
+        probeScheduler()
+
         Thread.sleep(30_000)
 
         val bmp = Bitmap.createBitmap(512, 512, Bitmap.Config.ARGB_8888)
@@ -211,6 +217,19 @@ class InferenceForegroundService : Service() {
                 " (${nonPadEnd + 1} non-pad)"
             )
         }
+    }
+
+    /** Phase 2 Step 5b-3a — emit Karras sigma + timestep schedule for
+     *  cross-check against scripts/scheduler_reference.py. */
+    private fun probeScheduler() {
+        val sched = DpmScheduler()
+        val sigmas = sched.karrasSigmas(numInferenceSteps = 12)
+        val ts = sched.karrasTimesteps(sigmas)
+        Log.d(TAG, "sched: sigmas n+1=${sigmas.size}")
+        for (i in sigmas.indices) {
+            Log.d(TAG, "sched:   sigma[$i] = ${"%.6f".format(sigmas[i])}")
+        }
+        Log.d(TAG, "sched: timesteps n=${ts.size} = ${ts.joinToString(",")}")
     }
 
     /** Phase 2 Step 5b-2 — tokenize + text_encoder.run, dump shape +
