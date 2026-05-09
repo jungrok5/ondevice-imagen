@@ -219,17 +219,40 @@ class InferenceForegroundService : Service() {
         }
     }
 
-    /** Phase 2 Step 5b-3a — emit Karras sigma + timestep schedule for
-     *  cross-check against scripts/scheduler_reference.py. */
+    /** Phase 2 Step 5b-3a/b — emit Karras sigma + timestep schedule
+     *  AND a single canned Euler step for cross-check against
+     *  scripts/scheduler_reference.py. */
     private fun probeScheduler() {
         val sched = DpmScheduler()
         val sigmas = sched.karrasSigmas(numInferenceSteps = 12)
         val ts = sched.karrasTimesteps(sigmas)
-        Log.d(TAG, "sched: sigmas n+1=${sigmas.size}")
-        for (i in sigmas.indices) {
-            Log.d(TAG, "sched:   sigma[$i] = ${"%.6f".format(sigmas[i])}")
-        }
-        Log.d(TAG, "sched: timesteps n=${ts.size} = ${ts.joinToString(",")}")
+        Log.d(TAG, "sched: sigmas n+1=${sigmas.size} (first/last) " +
+            "${"%.6f".format(sigmas[0])}, ${"%.6f".format(sigmas.last())}")
+        Log.d(TAG, "sched: timesteps = ${ts.joinToString(",")}")
+
+        // Canned Euler step against the same dummy values as the
+        // PC reference. Both arrays come from
+        // numpy.random.RandomState(42).randn(1,4,2,2) — 16 floats.
+        // Hardcoding lets Kotlin match PC exactly without porting RNG.
+        val dummySample = floatArrayOf(
+            0.49671414f, -0.1382643f, 0.6476886f, 1.5230298f,    // [0,0]
+            -0.23413695f, -0.23415337f, 1.5792128f, 0.7674347f,  // [0,1]
+            -0.46947438f, 0.54256004f, -0.46341768f, -0.46572974f, // [0,2]
+            0.24196227f, -1.9132802f, -1.7249179f, -0.5622875f,    // [0,3]
+        )
+        val dummyNoise = floatArrayOf(
+            -0.50641555f, 0.15712367f, -0.45401204f, -0.7061518f,
+            0.3509454f, -0.0511145f, -0.46428713f, -0.27044722f,
+            0.5251812f, -0.0925275f, -0.3144878f, 0.07989023f,
+            -0.10894683f, 0.04509933f, 0.7038389f, 0.18338153f,
+        )
+        // Step at index 0: sigma_t=sigmas[0], sigma_s=sigmas[1]
+        val out = sched.stepEuler(dummySample, dummyNoise, sigmas[0], sigmas[1])
+        Log.d(TAG, "sched: step(idx=0, sigma_t=${"%.4f".format(sigmas[0])} -> " +
+            "sigma_s=${"%.4f".format(sigmas[1])}) prev[0,0,0..3]=" +
+            (0..3).joinToString(",") { "%.4f".format(out[it]) })
+        Log.d(TAG, "sched: stats prev mean=${"%.5f".format(out.average())} " +
+            "min=${"%.5f".format(out.min())} max=${"%.5f".format(out.max())}")
     }
 
     /** Phase 2 Step 5b-2 — tokenize + text_encoder.run, dump shape +

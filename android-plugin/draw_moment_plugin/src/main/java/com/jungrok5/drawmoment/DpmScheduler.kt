@@ -69,6 +69,42 @@ class DpmScheduler(
         return out
     }
 
+    /** One step of Euler-with-Karras integration.
+     *
+     *  EulerDiscreteScheduler with prediction_type="epsilon" reduces to
+     *  one line: `prev = sample + (sigma_next - sigma) * eps` because the
+     *  model output IS the noise (no scaling needed under Karras sigmas).
+     *  This is the same math diffusers' EulerDiscreteScheduler runs;
+     *  verified against scripts/scheduler_reference.py.
+     *
+     *  DPM++ 2M Karras (which Step 1's PC verify cell used) needs a
+     *  history-aware multi-step solver and lambda transforms — deferred,
+     *  since Euler at 12 steps is already enough to validate the rest of
+     *  the on-device pipeline (Step 5b-4 / 5b-5 / 5c).
+     *
+     *  @param sample model latent at index k, shape [B,4,H,W] flat.
+     *  @param noisePred UNet's epsilon prediction, same shape as sample.
+     *  @param sigmaCurrent sigmas[k]
+     *  @param sigmaNext sigmas[k+1]
+     *  @return new sample at index k+1, allocated.
+     */
+    fun stepEuler(
+        sample: FloatArray,
+        noisePred: FloatArray,
+        sigmaCurrent: Float,
+        sigmaNext: Float,
+    ): FloatArray {
+        require(sample.size == noisePred.size) {
+            "size mismatch: ${sample.size} vs ${noisePred.size}"
+        }
+        val dt = sigmaNext - sigmaCurrent
+        val out = FloatArray(sample.size)
+        for (i in out.indices) {
+            out[i] = sample[i] + dt * noisePred[i]
+        }
+        return out
+    }
+
     /** Timesteps in the diffusion schedule that correspond to each σ.
      *  Picked by nearest match — diffusers uses interpolation but the
      *  difference at our step counts is ≤1 timestep. */

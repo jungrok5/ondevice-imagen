@@ -23,7 +23,7 @@ except Exception:
 
 import numpy as np
 import torch
-from diffusers import DPMSolverMultistepScheduler
+from diffusers import EulerDiscreteScheduler
 
 ROOT = Path(__file__).resolve().parent.parent
 SCHED_DIR = ROOT / "models" / "onnx" / "sd15_drawing_nty_scale0.8" / "scheduler"
@@ -32,9 +32,23 @@ NUM_INFERENCE_STEPS = 12
 
 
 def main() -> None:
-    sched = DPMSolverMultistepScheduler.from_pretrained(str(SCHED_DIR))
-    # sd15_lora_compare.py + Step 1 verify both used use_karras_sigmas=True
-    sched.config.use_karras_sigmas = True
+    # Step 5b-3b ships the Kotlin equivalent of EulerDiscreteScheduler
+    # with use_karras_sigmas=True, not the DPMSolverMultistep that
+    # Step 1's verify cell used. Single-step math is closed-form
+    # (prev = sample + (sigma_next - sigma) * model_output for
+    # prediction_type=epsilon) which keeps the port small. DPM++ 2M
+    # is future work — needs multi-step state + lambda transforms.
+    # We re-load with the SAME beta schedule and Karras sigmas the
+    # phone uses so this script's sigmas match Step 5b-3a's exactly.
+    sched = EulerDiscreteScheduler.from_pretrained(
+        str(SCHED_DIR),
+        use_karras_sigmas=True,
+        prediction_type="epsilon",
+        beta_start=0.00085,
+        beta_end=0.012,
+        beta_schedule="scaled_linear",
+        num_train_timesteps=1000,
+    )
     sched.set_timesteps(NUM_INFERENCE_STEPS)
 
     print(f"[ref] config: {dict(sched.config)}")
