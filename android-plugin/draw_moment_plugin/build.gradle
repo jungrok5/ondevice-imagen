@@ -28,7 +28,9 @@ android {
 dependencies {
     // Godot 4 plugin SDK — provides GodotPlugin / @UsedByGodot / SignalInfo.
     // compileOnly: the Godot runtime supplies it at app load time.
-    compileOnly "org.godotengine:godot:4.3.0.stable"
+    // Pinned to match the Godot Engine version that scripts/godot.ps1
+    // resolves (winget-installed 4.6.2 stable).
+    compileOnly "org.godotengine:godot:4.6.2.stable"
 
     implementation "androidx.core:core-ktx:1.13.1"
     implementation "androidx.work:work-runtime-ktx:2.9.1"

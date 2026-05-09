@@ -1,0 +1,7 @@
+[config]
+
+name="DrawMomentPlugin"
+binary_type="local"
+binary="draw_moment_plugin.aar"
+
+[dependencies]
