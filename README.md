@@ -603,6 +603,75 @@ What's still on the roadmap (Step 6 — quality + speed polish):
   failures](#sd-15-lora-candidates--drawing-110244--inked-portrait-drawing-947591),
   cutting the bundle from 4.27 GB toward ~2 GB.
 
+### Step 5c on Galaxy S25 Ultra — 5 m 37 s, no LMK kill
+
+Same SD 1.5 + drawing-NTY pipeline ported to a Snapdragon 8 Elite,
+12 GB RAM Galaxy S25 Ultra (Android 15). End-to-end:
+
+| | Note 10+ (Mali-G76, 8 GB, A13) | S25 Ultra (SD 8 Elite, 12 GB, A15) |
+| --- | --- | --- |
+| UNet step (CFG batch=2) | ~65 s | ~25 s |
+| Total wall clock | 14 min | **5 m 37 s** |
+| Picker | `worstimever (doodle/SDXL)` | `pencil drawing NTY (SD1.5)` ← matched trigger |
+
+| ONNX-written PNG (S25, NTY trigger) | Phone UI |
+| --- | --- |
+| ![](samples/phase2_step5c_s25_nty_real.png) | ![](samples/phase2_step5c_s25_phone_screen.png) |
+
+The S25 result shows the LoRA aesthetic actually firing — soft
+graphite-on-paper lines, two skeletal trees framing a misty 하동
+field — because the picker put `(style by NTY, drawing:1.2)` at
+the front of the prompt and the baked LoRA's trigger matched.
+The Note 10+ first-run image with the worstimever WTE trigger
+showed only the residual fused effect; this one shows the full
+intended look.
+
+**Three Android 14/15 compat pitfalls** surfaced en route, all
+specific to the S25 (Note 10+ on Android 13 didn't trip any):
+
+1. **`startForeground()` needs an explicit `foregroundServiceType`
+   argument on API 34+** — manifest declaration alone is no longer
+   enough. Symptom: process silently dies right after step 1, no
+   FATAL/tombstone. Fix: branch on `Build.VERSION.SDK_INT` and pass
+   `ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC` explicitly. See
+   commit `d1e467c`.
+2. **adb-pushed directories owner=`shell`, app can't read them under
+   stricter SELinux + scoped storage** — `/sdcard/Android/data/<pkg>/
+   files/onnx/...` works on Note 10+ but not on S25. Fix: `adb shell
+   chmod -R a+rX <dir>` after push.
+3. **lowmemorykiller eats the entire system when our 4 GB UNet runs
+   alongside resident background apps** — first run on S25 took our
+   process AND ~40 system services (KakaoTalk, Samsung Pay,
+   SmartThings, Google Search, etc.) all at once, all
+   `Rescheduling restart of crashed service`. Lower peak RSS via
+   `setMemoryPatternOptimization(false) + setCPUArenaAllocator(false)`
+   (commit `704f8cd`). Real fix is fp16; the SessionOptions tweaks
+   just lower the bar far enough that flagship phones with closed
+   background apps survive.
+
+(Pulling the result PNG also needed the `adb exec-out run-as <pkg>
+cat ...` binary stream — direct `adb pull` from app private storage
+via mid-step copy was denied on the S25.)
+
+### Production-readiness gates ahead of "weekly postcard" plan
+
+Verified to date: SD 1.5 pipeline runs end-to-end on two real
+phones, 5–14 min on CPU EP. **Not yet** ready for the
+[mobile-architecture.md](docs/mobile-architecture.md) "user receives
+a postcard once a week" UX, because:
+
+| Gate | Status | What it unblocks |
+|---|---|---|
+| **A · fp16 cast** | Step 3 stalled on PC; retry through manual ORT InferenceSession on the phone (Step 6) | Memory headroom: 8 GB phones, no more LMK roulette |
+| **B · WorkManager + charging/idle constraints** | Phase 1 still uses `Service.onStartCommand` "start now" model. Architecture target in [docs](docs/mobile-architecture.md). | Zero user-visible CPU/memory impact — work runs while the phone is charging on the nightstand |
+| **C · NNAPI / QNN delegate** | All four ONNX sub-models load CPU-only today. NNAPI EP plausibly cuts UNet step from 25 s to ~3 s on SD 8 Elite. | Phone-budget-class hardware (Exynos / Tensor G2) in scope, not just flagships |
+
+Why not SDXL instead: doubles the UNet (5 GB at fp16) and the
+latent (4×), so even with A+B+C the bundle exceeds 12 GB-flagship
+budget. The intentional-bad / doodle aesthetic this project targets
+doesn't need SDXL fidelity anyway. SDXL-Turbo would help on step
+count but not on memory. SD 1.5 stays the default.
+
 ### Step 1 → Step 2: same e2 cell, two pipes
 
 Both verify cells were generated for `e2_evening_cafe_rain` (광화문
