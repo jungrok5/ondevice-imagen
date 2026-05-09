@@ -15,8 +15,10 @@ import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
+import java.nio.IntBuffer
 import java.io.File
 import java.io.FileOutputStream
 import kotlin.concurrent.thread
@@ -83,6 +85,12 @@ class InferenceForegroundService : Service() {
         // user, prints input_ids[0..15] for cross-check against
         // transformers.CLIPTokenizer on the PC side.
         probeTokenizer(prompt)
+
+        // Phase 2 Step 5b-2: feed the tokenized prompt through the
+        // text_encoder ONNX session and dump shape + summary stats
+        // of the last_hidden_state output. Cross-checked on PC via
+        // scripts/text_encoder_reference.py.
+        probeTextEncoder(prompt)
 
         Thread.sleep(30_000)
 
@@ -205,7 +213,82 @@ class InferenceForegroundService : Service() {
         }
     }
 
-    // --- Notifications -------------------------------------------------------
+    /** Phase 2 Step 5b-2 — tokenize + text_encoder.run, dump shape +
+     *  summary stats. Cross-check via scripts/text_encoder_reference.py. */
+    private fun probeTextEncoder(prompt: String) {
+        val baseDir = File(
+            getExternalFilesDir(null),
+            "onnx/sd15_drawing_nty_scale0.8",
+        )
+        val tokDir = File(baseDir, "tokenizer")
+        val tok = try {
+            ClipTokenizer(tokDir)
+        } catch (e: Throwable) {
+            Log.e(TAG, "te: tokenizer load FAILED: ${e.message}", e)
+            return
+        }
+        val ids = tok.encode(prompt, ClipTokenizer.MAX_LENGTH)
+        Log.d(TAG, "te: ids[0..7]=${ids.take(8)} ids[-3..]=${ids.takeLast(3)}")
+
+        val ortEnv = OrtEnvironment.getEnvironment()
+        var session: OrtSession? = null
+        var inputTensor: OnnxTensor? = null
+        try {
+            session = ortEnv.createSession(
+                File(baseDir, "text_encoder/model.onnx").absolutePath,
+                OrtSession.SessionOptions(),
+            )
+            // CLIP text_encoder takes input_ids as INT32 [batch=1, seq=77].
+            // ORT Java's IntBuffer overload picks INT32 automatically.
+            val buf = IntBuffer.wrap(ids)
+            inputTensor = OnnxTensor.createTensor(
+                ortEnv, buf, longArrayOf(1, ids.size.toLong()),
+            )
+            val t0 = System.currentTimeMillis()
+            val out = session.run(mapOf("input_ids" to inputTensor))
+            val elapsed = System.currentTimeMillis() - t0
+            val hidden = out.get("last_hidden_state").get() as OnnxTensor
+            val shape = hidden.info.shape    // [1, 77, 768]
+            val flat = FloatArray(shape.fold(1L) { acc, d -> acc * d }.toInt())
+            hidden.floatBuffer.get(flat)
+            // Stats — mean, stddev, min, max, plus a fingerprint of the
+            // first 8 values so any drift vs PC reference is visible.
+            val n = flat.size
+            var sum = 0.0
+            var sumSq = 0.0
+            var mn = Float.POSITIVE_INFINITY
+            var mx = Float.NEGATIVE_INFINITY
+            for (v in flat) {
+                sum += v; sumSq += v.toDouble() * v.toDouble()
+                if (v < mn) mn = v
+                if (v > mx) mx = v
+            }
+            val mean = sum / n
+            val variance = sumSq / n - mean * mean
+            val stddev = if (variance > 0) Math.sqrt(variance) else 0.0
+            Log.d(TAG, "te: shape=${shape.joinToString("x")} elapsed=${elapsed} ms")
+            Log.d(TAG, "te: stats mean=${"%.5f".format(mean)} std=${"%.5f".format(stddev)} " +
+                "min=${"%.5f".format(mn)} max=${"%.5f".format(mx)}")
+            // First 8 values of the FIRST token's embedding (the BOS row)
+            Log.d(TAG, "te: hid[0,0,0..7]=" +
+                (0 until 8).joinToString(",") { "%.4f".format(flat[it]) })
+            // First 8 values of the SECOND token's embedding (token 1)
+            val rowOffset = 768
+            Log.d(TAG, "te: hid[0,1,0..7]=" +
+                (0 until 8).joinToString(",") { "%.4f".format(flat[rowOffset + it]) })
+            hidden.close()
+            out.close()
+        } catch (e: Throwable) {
+            Log.e(TAG, "te: run FAILED: ${e.javaClass.simpleName}: ${e.message}", e)
+        } finally {
+            inputTensor?.close()
+            session?.close()
+        }
+    }
+
+    /** Phase 2 Step 5b-1 — encode a few prompts with the local
+     *  ClipTokenizer and dump the IDs. Verified against
+     *  transformers.CLIPTokenizer via scripts/clip_tokenizer_reference.py. */
 
     private fun ensureChannels() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
