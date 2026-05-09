@@ -7,10 +7,6 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.graphics.Color
-import android.graphics.Paint
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
@@ -67,71 +63,32 @@ class InferenceForegroundService : Service() {
     }
 
     /**
-     * Phase-1 placeholder body. Writes a tiny PNG with the prompt drawn
-     * onto it after a 30 s wait. Phase 2 replaces this entire function
-     * with ONNX Runtime SD 1.5 inference (and the wait drops to whatever
-     * actual inference takes — 1–3 min on Note 10+).
+     * Phase 2 Step 5c — real on-device SD 1.5 inference.
+     *
+     * Pipeline (see SdInferencePipeline for details):
+     *   1) tokenize prompt + "" through CLIP byte-level BPE
+     *   2) text_encoder.run × 2 — cond + uncond hidden_states [1,77,768]
+     *   3) Karras sigma schedule (12 steps, σ_max=14.6 → σ_min=0.029 → 0)
+     *   4) gaussian latent at σ_max, deterministic seed = prompt.hashCode()
+     *   5) 12-step Euler-Karras UNet loop, CFG=7.5 batch=2
+     *   6) divide by 0.18215, vae_decoder.run → [-1,1] CHW float
+     *   7) clamp + scale to uint8 ARGB → Bitmap → PNG
+     *
+     * Estimated wall clock on Note 10+ CPU EP: ~10 min (12 × ~50 s
+     * per CFG-batched UNet step, plus negligible TE + VAE).
      */
     private fun doInference(prompt: String, outputPath: String) {
-        // Phase 2 Step 5a: probe each ONNX sub-model. Confirms ORT
-        // loads, the model files are reachable from this app context,
-        // and emits each session's input/output schemas to logcat so
-        // we know what tensors the next milestone (5b) needs to feed.
-        // Bundled at /sdcard/Android/data/<pkg>/files/onnx/<name>/
-        // via `adb push` for now; download-on-first-use comes later.
-        probeOnnxModels()
-
-        // Phase 2 Step 5b-1: tokenize sanity. Runs ClipTokenizer
-        // against fixed sample inputs + the live `prompt` from the
-        // user, prints input_ids[0..15] for cross-check against
-        // transformers.CLIPTokenizer on the PC side.
-        probeTokenizer(prompt)
-
-        // Phase 2 Step 5b-2: feed the tokenized prompt through the
-        // text_encoder ONNX session and dump shape + summary stats
-        // of the last_hidden_state output. Cross-checked on PC via
-        // scripts/text_encoder_reference.py.
-        probeTextEncoder(prompt)
-
-        // Phase 2 Step 5b-3a: emit Karras sigma schedule from the
-        // local DpmScheduler implementation. Cross-checked against
-        // diffusers.DPMSolverMultistepScheduler via
-        // scripts/scheduler_reference.py — must match within 1e-5.
-        probeScheduler()
-
-        // Phase 2 Step 5b-4a: single UNet forward pass. Hardcoded
-        // prompt "a cat" so PC reference (scripts/unet_reference.py)
-        // and phone produce identical input → output shapes/stats
-        // can be diff'd directly.
-        probeUNet()
-
-        Thread.sleep(30_000)
-
-        val bmp = Bitmap.createBitmap(512, 512, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bmp)
-        canvas.drawColor(Color.rgb(245, 240, 230))
-        val paint = Paint().apply {
-            color = Color.rgb(40, 40, 40)
-            textSize = 22f
-            isAntiAlias = true
+        val baseDir = File(
+            getExternalFilesDir(null),
+            "onnx/sd15_drawing_nty_scale0.8",
+        )
+        if (!baseDir.exists()) {
+            Log.e(TAG, "model bundle missing at $baseDir — push it via adb first")
+            throw IllegalStateException("model bundle missing")
         }
-        canvas.drawText("PHASE 1 — fake inference", 20f, 40f, paint)
-        paint.textSize = 14f
-        // Word-wrap the prompt onto subsequent lines.
-        var y = 80f
-        for (chunk in prompt.chunked(48)) {
-            canvas.drawText(chunk, 20f, y, paint)
-            y += 22f
-        }
-        paint.color = Color.rgb(120, 80, 80)
-        paint.textSize = 14f
-        canvas.drawText("real SDXL/SD 1.5 output appears here in phase 2",
-            20f, 500f, paint)
-
-        FileOutputStream(File(outputPath)).use { out ->
-            bmp.compress(Bitmap.CompressFormat.PNG, 100, out)
-        }
-        bmp.recycle()
+        val pipe = SdInferencePipeline(baseDir = baseDir)
+        val ms = pipe.generate(prompt, outputPath)
+        Log.d(TAG, "doInference done in $ms ms — wrote $outputPath")
     }
 
     /**
