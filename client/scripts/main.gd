@@ -63,25 +63,46 @@ func _ready() -> void:
 		draw_plugin = Engine.get_singleton("DrawMomentPlugin")
 		draw_plugin.connect("inference_completed", Callable(self, "_on_inference_completed"))
 		draw_plugin.connect("inference_failed",    Callable(self, "_on_inference_failed"))
+		draw_plugin.connect("gps_updated",         Callable(self, "_on_gps_updated"))
+		draw_plugin.connect("gps_failed",          Callable(self, "_on_gps_failed"))
 	else:
 		draw_plugin = null
 
 	_build_ui()
 	_on_context_changed(ctx_provider.get_cached_context())
-	# Initial network refresh — does nothing fatal on desktop without network.
+	# Initial network refresh against the default fallback (Seoul City Hall).
+	# A real GPS fix replaces it once the user grants the permission below.
 	ctx_provider.set_location(ContextProvider.DEFAULT_LAT, ContextProvider.DEFAULT_LON)
+	# On Android, ask for location permission up front. The plugin's
+	# onMainRequestPermissionsResult fires request_current_location
+	# automatically once the user grants — no race window. If the user
+	# already granted on a previous launch, ask for a fix immediately.
+	if draw_plugin != null:
+		if draw_plugin.call("has_location_permission"):
+			status_label.text = "asking GPS for a fix on launch..."
+			draw_plugin.call("request_current_location")
+		else:
+			status_label.text = "requesting location permission..."
+			draw_plugin.call("request_location_permission")
 
 
 func _build_ui() -> void:
+	# Wrap everything in a ScrollContainer so the result image at the
+	# bottom doesn't squash the prompt editor and status labels above.
+	var scroll := ScrollContainer.new()
+	scroll.anchor_right = 1.0
+	scroll.anchor_bottom = 1.0
+	scroll.set("offset_left", 16)
+	scroll.set("offset_right", -16)
+	scroll.set("offset_top", 16)
+	scroll.set("offset_bottom", -16)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	add_child(scroll)
+
 	var root := VBoxContainer.new()
-	root.anchor_right = 1.0
-	root.anchor_bottom = 1.0
+	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	root.add_theme_constant_override("separation", 8)
-	root.set("offset_left", 16)
-	root.set("offset_right", -16)
-	root.set("offset_top", 16)
-	root.set("offset_bottom", -16)
-	add_child(root)
+	scroll.add_child(root)
 
 	# Lat / Lon (phase 2 replaces with native GPS)
 	var loc_row := _row(root, "Lat / Lon")
@@ -94,10 +115,10 @@ func _build_ui() -> void:
 	lon_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	loc_row.add_child(lon_edit)
 	refresh_button = Button.new()
-	refresh_button.text = "↻"
-	refresh_button.tooltip_text = "Re-fetch weather + place from new lat/lon"
-	refresh_button.custom_minimum_size = Vector2(56, 56)
-	refresh_button.add_theme_font_size_override("font_size", 24)
+	refresh_button.text = "📍"
+	refresh_button.tooltip_text = "Get my location (GPS) + re-fetch weather/place"
+	refresh_button.custom_minimum_size = Vector2(64, 48)
+	refresh_button.add_theme_font_size_override("font_size", 22)
 	refresh_button.pressed.connect(_on_refresh_pressed)
 	loc_row.add_child(refresh_button)
 
@@ -113,8 +134,8 @@ func _build_ui() -> void:
 	# Build prompt button
 	build_button = Button.new()
 	build_button.text = "Build prompt from context"
-	build_button.custom_minimum_size = Vector2(0, 64)
-	build_button.add_theme_font_size_override("font_size", 20)
+	build_button.custom_minimum_size = Vector2(0, 44)
+	build_button.add_theme_font_size_override("font_size", 18)
 	build_button.pressed.connect(_on_build_pressed)
 	root.add_child(build_button)
 
@@ -126,7 +147,7 @@ func _build_ui() -> void:
 	# Editable prompt — user can hand-tune before pressing Generate.
 	prompt_edit = TextEdit.new()
 	prompt_edit.placeholder_text = "Press [Build prompt] to fill, then edit freely before [Generate]."
-	prompt_edit.custom_minimum_size = Vector2(0, 220)
+	prompt_edit.custom_minimum_size = Vector2(0, 140)
 	prompt_edit.add_theme_font_size_override("font_size", 18)
 	prompt_edit.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
 	root.add_child(prompt_edit)
@@ -134,13 +155,17 @@ func _build_ui() -> void:
 	# Generate
 	generate_button = Button.new()
 	generate_button.text = "Generate"
-	generate_button.custom_minimum_size = Vector2(0, 96)
-	generate_button.add_theme_font_size_override("font_size", 28)
+	generate_button.custom_minimum_size = Vector2(0, 64)
+	generate_button.add_theme_font_size_override("font_size", 24)
 	generate_button.pressed.connect(_on_generate_pressed)
 	root.add_child(generate_button)
 
-	# Status (busy / done / error / elapsed)
+	# Status (busy / done / error / elapsed) — autowrap so the long
+	# done line ("done — elapsed 30.08s — /data/data/.../moment_*.png")
+	# stays visible instead of getting truncated.
 	status_label = Label.new()
+	status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	status_label.add_theme_font_size_override("font_size", 24)
 	status_label.text = ("ready" if draw_plugin != null
 		else "ready (no native plugin — desktop build, fake delay only)")
 	root.add_child(status_label)
@@ -151,30 +176,64 @@ func _build_ui() -> void:
 	detail_label.add_theme_font_size_override("font_size", 16)
 	root.add_child(detail_label)
 
-	# Result image
+	# Result image — fixed minimum so it always shows but never expands
+	# to crowd out the controls above. The ScrollContainer handles the
+	# rest if the screen is short.
 	result_rect = TextureRect.new()
 	result_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	result_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	result_rect.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	result_rect.custom_minimum_size = Vector2(0, 480)
 	root.add_child(result_rect)
 
 
 func _row(parent: Node, label: String) -> HBoxContainer:
 	var hbox := HBoxContainer.new()
-	hbox.custom_minimum_size = Vector2(0, 56)
 	var lbl := Label.new()
 	lbl.text = label
-	lbl.custom_minimum_size = Vector2(120, 0)
+	lbl.custom_minimum_size = Vector2(96, 0)
 	hbox.add_child(lbl)
 	parent.add_child(hbox)
 	return hbox
 
 
 func _on_refresh_pressed() -> void:
+	# Two paths:
+	#  - on Android with the plugin available, ask the OS for a fresh GPS
+	#    fix; it lands in _on_gps_updated which then calls set_location.
+	#  - on desktop or with no permission, fall back to whatever's already
+	#    typed in the lat/lon fields.
+	if draw_plugin != null:
+		status_label.text = "asking GPS for a fix ..."
+		draw_plugin.call("request_location_permission")
+		draw_plugin.call("request_current_location")
+		return
 	var lat := float(lat_edit.text)
 	var lon := float(lon_edit.text)
 	ctx_provider.set_location(lat, lon)
 	status_label.text = "fetching weather + place ..."
+
+
+func _on_gps_updated(payload: String) -> void:
+	# Plugin ships "lat,lon" as a single string to dodge Godot signal
+	# numeric-arg plumbing.
+	var parts: PackedStringArray = payload.split(",")
+	if parts.size() != 2:
+		status_label.text = "GPS bad payload: %s" % payload
+		return
+	var lat := float(parts[0])
+	var lon := float(parts[1])
+	# Echo into the editable fields so the user sees the actual coords
+	# the rest of the pipeline is using.
+	lat_edit.text = "%.5f" % lat
+	lon_edit.text = "%.5f" % lon
+	ctx_provider.set_location(lat, lon)
+	status_label.text = "GPS fix → %.5f, %.5f — refreshing weather + place ..." % [lat, lon]
+
+
+func _on_gps_failed(reason: String) -> void:
+	# Don't block the rest of the UI — the default fallback context still
+	# works, the user just gets the Seoul City Hall numbers.
+	status_label.text = "GPS unavailable: %s — using default lat/lon" % reason
 
 
 func _on_context_changed(ctx: Dictionary) -> void:
