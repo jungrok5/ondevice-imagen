@@ -66,6 +66,25 @@ if ($ortAar) {
     exit 1
 }
 
+# NOTE: WorkManager (androidx.work:work-runtime / -ktx) was tried in
+# Phase 2 Step 6-B and rolled back (commit XXXXXXX). It worked at
+# class-load time once we copied work-runtime + work-runtime-ktx AARs,
+# but immediately tripped a chain of NoClassDefFoundErrors on
+# androidx.room.* at the WorkManager DB-init step. Copying every
+# transitive AAR (room-runtime, sqlite-framework, lifecycle-livedata, ...)
+# would balloon to 8+ files just to surface the next NoClassDef.
+# Phase 3's weekly UX (the actual reason for WorkManager) will revisit
+# this with fat-aar embedding or direct edits to Godot's Android
+# template build.gradle — the Phase 2 Foreground Service path is
+# adequate for the dev workflow we're on now.
+# NOTE: androidx.concurrent:concurrent-futures is already brought in
+# by Godot's own Android template (transitively, somewhere in its
+# build dependency tree). Copying it again here causes a
+# `Duplicate class androidx.concurrent.futures.AbstractResolvableFuture`
+# build error in :checkStandardDebugDuplicateClasses. The work-runtime
+# AAR's manifest still references it; AGP's merger picks it up from
+# the template's transitive set.
+
 if (Test-Path $outputApk) { Remove-Item $outputApk -Force }
 
 Write-Host "[android] Step 3/3 — Exporting debug APK via Godot" -ForegroundColor Cyan
