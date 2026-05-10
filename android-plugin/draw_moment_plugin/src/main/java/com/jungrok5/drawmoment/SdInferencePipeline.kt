@@ -2,11 +2,14 @@ package com.jungrok5.drawmoment
 
 import android.graphics.Bitmap
 import android.util.Log
+import ai.onnxruntime.OnnxJavaType
 import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
 import java.io.File
 import java.io.FileOutputStream
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.nio.FloatBuffer
 import java.nio.IntBuffer
 import java.util.Random
@@ -35,6 +38,12 @@ class SdInferencePipeline(
     private val cfgScale: Float = 7.5f,
     private val width: Int = 512,
     private val height: Int = 512,
+    /** Step 6-A: when the UNet sub-model was built with
+     *  `keep_io_types=False` so its input/output tensors are fp16,
+     *  we must hand it Float16 tensors and cast its output back to
+     *  fp32 before the Euler step (which still runs in fp32). The
+     *  text_encoder + VAE stay fp32 — only UNet is fp16. */
+    private val unetIsFp16: Boolean = false,
 ) {
     private val latentH = height / 8
     private val latentW = width / 8
@@ -135,6 +144,94 @@ class SdInferencePipeline(
         return elapsed
     }
 
+    // --- Step 6-A fp16 helpers ------------------------------------------
+
+    /** IEEE 754 single (32-bit) → half (16-bit). Round-to-nearest, no
+     *  subnormal support — adequate for SD UNet inputs where values
+     *  sit comfortably within fp16's normal range (~-65504..65504,
+     *  smallest normal ~6e-5). Used to feed fp16 OnnxTensor inputs. */
+    private fun floatToHalfBits(f: Float): Short {
+        val bits = java.lang.Float.floatToRawIntBits(f)
+        val sign = (bits ushr 16) and 0x8000
+        var expF = (bits ushr 23) and 0xff
+        var mantF = bits and 0x7fffff
+        if (expF == 255) {
+            // NaN / Infinity
+            return (sign or 0x7c00 or (if (mantF != 0) 0x200 else 0)).toShort()
+        }
+        val newExp = expF - 127 + 15
+        return when {
+            newExp <= 0 -> sign.toShort()                    // underflow → ±0
+            newExp >= 0x1f -> (sign or 0x7c00).toShort()    // overflow → ±Inf
+            else -> {
+                // round mantissa: drop bottom 13 bits with round-to-nearest-even
+                val rounded = mantF + 0x1000
+                val mant16 = (rounded ushr 13) and 0x3ff
+                // if the round bumped mantissa overflow, increment exponent
+                val carry = (rounded ushr 23) and 0x1
+                val finalExp = newExp + carry
+                if (finalExp >= 0x1f) (sign or 0x7c00).toShort()
+                else (sign or (finalExp shl 10) or mant16).toShort()
+            }
+        }
+    }
+
+    /** half (16-bit) → IEEE 754 single (32-bit). */
+    private fun halfBitsToFloat(h: Short): Float {
+        val bits = h.toInt() and 0xffff
+        val sign = (bits and 0x8000) shl 16
+        val exp = (bits and 0x7c00) ushr 10
+        val mant = bits and 0x3ff
+        return when (exp) {
+            0 -> {
+                if (mant == 0) java.lang.Float.intBitsToFloat(sign)
+                else {
+                    // subnormal — convert to fp32 normalized
+                    var m = mant
+                    var e = -14
+                    while ((m and 0x400) == 0) {
+                        m = m shl 1
+                        e -= 1
+                    }
+                    val mantF = (m and 0x3ff) shl 13
+                    val expF = (e + 127) shl 23
+                    java.lang.Float.intBitsToFloat(sign or expF or mantF)
+                }
+            }
+            0x1f -> {
+                // Inf / NaN
+                java.lang.Float.intBitsToFloat(sign or 0x7f800000 or (mant shl 13))
+            }
+            else -> {
+                val expF = (exp - 15 + 127) shl 23
+                val mantF = mant shl 13
+                java.lang.Float.intBitsToFloat(sign or expF or mantF)
+            }
+        }
+    }
+
+    /** Wrap a FloatArray as a Direct ByteBuffer of fp16 values. The
+     *  ByteBuffer is what `OnnxTensor.createTensor(env, buf, shape,
+     *  OnnxJavaType.FLOAT16)` expects; size = arr.size × 2 bytes. */
+    private fun floatArrayToHalfBuffer(arr: FloatArray): ByteBuffer {
+        val buf = ByteBuffer.allocateDirect(arr.size * 2).order(ByteOrder.nativeOrder())
+        for (v in arr) buf.putShort(floatToHalfBits(v))
+        buf.rewind()
+        return buf
+    }
+
+    /** Read a FLOAT16 OnnxTensor's payload into a FloatArray of length
+     *  `count`. Tensor's underlying buffer is unsigned shorts; we go
+     *  through a ShortBuffer and convert one element at a time. */
+    private fun halfTensorToFloatArray(tensor: OnnxTensor, count: Int): FloatArray {
+        val raw = tensor.byteBuffer
+        raw.order(ByteOrder.nativeOrder())
+        val sb = raw.asShortBuffer()
+        val out = FloatArray(count)
+        for (i in 0 until count) out[i] = halfBitsToFloat(sb.get(i))
+        return out
+    }
+
     /** SessionOptions tuned for lower peak RSS — at the cost of a small
      *  speed hit. Pattern optimization preallocates intermediate tensors
      *  and the CPU arena hangs onto big slabs across sessions; both make
@@ -197,24 +294,46 @@ class SdInferencePipeline(
         var tsT:     OnnxTensor? = null
         var hiddenT: OnnxTensor? = null
         try {
-            sampleT = OnnxTensor.createTensor(
-                ortEnv, FloatBuffer.wrap(sampleBatch),
-                longArrayOf(2, 4, latentH.toLong(), latentW.toLong()),
-            )
-            tsT = OnnxTensor.createTensor(
-                ortEnv, FloatBuffer.wrap(tsBatch), longArrayOf(2),
-            )
-            hiddenT = OnnxTensor.createTensor(
-                ortEnv, FloatBuffer.wrap(hiddenBatch), longArrayOf(2, 77, 768),
-            )
+            val sampleShape = longArrayOf(2, 4, latentH.toLong(), latentW.toLong())
+            val hiddenShape = longArrayOf(2, 77, 768)
+            val tsShape     = longArrayOf(2)
+
+            if (unetIsFp16) {
+                sampleT = OnnxTensor.createTensor(
+                    ortEnv, floatArrayToHalfBuffer(sampleBatch),
+                    sampleShape, OnnxJavaType.FLOAT16,
+                )
+                tsT = OnnxTensor.createTensor(
+                    ortEnv, floatArrayToHalfBuffer(tsBatch),
+                    tsShape, OnnxJavaType.FLOAT16,
+                )
+                hiddenT = OnnxTensor.createTensor(
+                    ortEnv, floatArrayToHalfBuffer(hiddenBatch),
+                    hiddenShape, OnnxJavaType.FLOAT16,
+                )
+            } else {
+                sampleT = OnnxTensor.createTensor(
+                    ortEnv, FloatBuffer.wrap(sampleBatch), sampleShape,
+                )
+                tsT = OnnxTensor.createTensor(
+                    ortEnv, FloatBuffer.wrap(tsBatch), tsShape,
+                )
+                hiddenT = OnnxTensor.createTensor(
+                    ortEnv, FloatBuffer.wrap(hiddenBatch), hiddenShape,
+                )
+            }
+
             val out = session.run(mapOf(
                 "sample"               to sampleT,
                 "timestep"             to tsT,
                 "encoder_hidden_states" to hiddenT,
             ))
             val outSample = out.get("out_sample").get() as OnnxTensor
-            val flat = FloatArray(2 * perFrame)
-            outSample.floatBuffer.get(flat)
+            val flat = if (unetIsFp16) {
+                halfTensorToFloatArray(outSample, 2 * perFrame)
+            } else {
+                FloatArray(2 * perFrame).also { outSample.floatBuffer.get(it) }
+            }
             outSample.close()
             out.close()
 

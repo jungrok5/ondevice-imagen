@@ -94,15 +94,24 @@ class InferenceForegroundService : Service() {
      * per CFG-batched UNet step, plus negligible TE + VAE).
      */
     private fun doInference(prompt: String, outputPath: String) {
-        val baseDir = File(
-            getExternalFilesDir(null),
-            "onnx/sd15_drawing_nty_scale0.8",
-        )
-        if (!baseDir.exists()) {
-            Log.e(TAG, "model bundle missing at $baseDir — push it via adb first")
-            throw IllegalStateException("model bundle missing")
+        // Step 6-A: prefer the fp16-UNet bundle if it's been pushed.
+        // Falls back to the fp32 bundle the rest of the pipeline was
+        // verified against. Both layouts use the same dir name under
+        // their root (sd15_drawing_nty_scale0.8/) so we just pick the
+        // root and pass the unetIsFp16 flag through.
+        val ext = getExternalFilesDir(null)
+        val fp16Dir = File(ext, "onnx_fp16_unet/sd15_drawing_nty_scale0.8")
+        val fp32Dir = File(ext, "onnx/sd15_drawing_nty_scale0.8")
+        val (baseDir, isFp16) = when {
+            fp16Dir.exists() -> fp16Dir to true
+            fp32Dir.exists() -> fp32Dir to false
+            else -> {
+                Log.e(TAG, "model bundle missing at $fp16Dir or $fp32Dir — push via adb first")
+                throw IllegalStateException("model bundle missing")
+            }
         }
-        val pipe = SdInferencePipeline(baseDir = baseDir)
+        Log.d(TAG, "doInference: bundle=${baseDir.absolutePath} fp16Unet=$isFp16")
+        val pipe = SdInferencePipeline(baseDir = baseDir, unetIsFp16 = isFp16)
         val ms = pipe.generate(prompt, outputPath)
         Log.d(TAG, "doInference done in $ms ms — wrote $outputPath")
     }
