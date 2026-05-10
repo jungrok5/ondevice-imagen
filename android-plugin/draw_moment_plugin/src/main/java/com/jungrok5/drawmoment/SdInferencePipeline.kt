@@ -6,6 +6,8 @@ import ai.onnxruntime.OnnxJavaType
 import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
+import ai.onnxruntime.providers.NNAPIFlags
+import java.util.EnumSet
 import java.io.File
 import java.io.FileOutputStream
 import java.nio.ByteBuffer
@@ -88,6 +90,11 @@ class SdInferencePipeline(
         //    the magnitudes wrong → noise_pred drifts → final image
         //    collapses to a flat color. The Euler step itself still
         //    runs on the *raw* (unscaled) latent.
+        // CPU EP only. NNAPI USE_FP16 was tried (sessionOptionsUnetNnapi
+        // below) and produced 2x slower runs AND visible LoRA-effect
+        // wash-out on the S25 Hexagon — fp16 quantization eats the small
+        // weight deltas that the baked LoRA depends on. Kept the helper
+        // for future QNN EP / different flag experiments.
         val unetSession = ortEnv.createSession(
             File(baseDir, "unet/model.onnx").absolutePath,
             sessionOptions(),
@@ -241,6 +248,31 @@ class SdInferencePipeline(
         val opts = OrtSession.SessionOptions()
         opts.setMemoryPatternOptimization(false)
         opts.setCPUArenaAllocator(false)
+        return opts
+    }
+
+    /** Step 6-C: SessionOptions with NNAPI delegate enabled. Use ONLY for
+     *  the UNet — it's the heavy ~5 min CPU step and the one that Hexagon
+     *  / Mali-NPU acceleration actually moves the needle on. text_encoder
+     *  and VAE are sub-second already; routing them through NNAPI risks
+     *  CPU fallback on unsupported ops without meaningful win.
+     *
+     *  USE_FP16 flag: NNAPI is allowed to compute in fp16 internally even
+     *  on a fp32 ONNX graph. NPU silicon is fp16-native, so this is the
+     *  free path to fp16 acceleration without us having to ship a fp16
+     *  ONNX bundle (Step 6-A's PC export). If the delegate can't pick
+     *  up some ops, ORT falls back to CPU automatically per-node.
+     *
+     *  CPU_DISABLED is intentionally NOT set — we want graceful
+     *  partial-NNAPI execution, not an all-or-nothing failure. */
+    private fun sessionOptionsUnetNnapi(): OrtSession.SessionOptions {
+        val opts = sessionOptions()
+        try {
+            opts.addNnapi(EnumSet.of(NNAPIFlags.USE_FP16))
+            Log.d(TAG, "sessionOptions: NNAPI EP enabled (USE_FP16) for UNet")
+        } catch (e: Throwable) {
+            Log.w(TAG, "sessionOptions: NNAPI add failed, CPU fallback: ${e.message}")
+        }
         return opts
     }
 
