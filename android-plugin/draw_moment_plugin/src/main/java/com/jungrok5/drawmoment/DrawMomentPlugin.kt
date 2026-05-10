@@ -2,13 +2,16 @@ package com.jungrok5.drawmoment
 
 import android.Manifest
 import android.content.Context
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.LocationManager
 import android.os.Build
 import android.util.Log
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.work.Data
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
 import org.godotengine.godot.Godot
 import org.godotengine.godot.plugin.GodotPlugin
 import org.godotengine.godot.plugin.SignalInfo
@@ -80,13 +83,24 @@ class DrawMomentPlugin(godot: Godot) : GodotPlugin(godot) {
     @UsedByGodot
     fun start_inference(prompt: String, outputPath: String) {
         val ctx = godot.getActivity()?.applicationContext ?: return
-        val intent = Intent(ctx, InferenceForegroundService::class.java).apply {
-            putExtra(InferenceForegroundService.EXTRA_PROMPT, prompt)
-            putExtra(InferenceForegroundService.EXTRA_OUTPUT_PATH, outputPath)
-        }
-        // startForegroundService is required on Android 8+ — the Service
-        // then calls startForeground() within ~5 s or the OS kills it.
-        ctx.startForegroundService(intent)
+        // Phase 3: route through WorkManager so the same code path can
+        // serve both the user-tap dev flow (OneTimeWorkRequest) and the
+        // weekly-postcard schedule (PeriodicWorkRequest, 3-3 next).
+        // KEEP policy makes a second tap during a running job a no-op
+        // instead of queueing — matches user expectation that the button
+        // dims while inference is in flight.
+        val data = Data.Builder()
+            .putString(PostcardWorker.KEY_PROMPT, prompt)
+            .putString(PostcardWorker.KEY_OUTPUT_PATH, outputPath)
+            .build()
+        val req = OneTimeWorkRequestBuilder<PostcardWorker>()
+            .setInputData(data)
+            .build()
+        WorkManager.getInstance(ctx).enqueueUniqueWork(
+            PostcardWorker.UNIQUE_NAME,
+            ExistingWorkPolicy.KEEP,
+            req,
+        )
     }
 
     /** Called by the Service when inference finishes. Forwards to GDScript. */
