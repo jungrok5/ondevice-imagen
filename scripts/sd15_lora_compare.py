@@ -63,11 +63,23 @@ EVENTS: list[tuple[str, dict]] = [
 ]
 
 # (visual_style key in LORA_TRIGGERS, .safetensors filename, lora scale)
-# Drawing 110244 example image weight = 0.8, Inked Portrait 947591
-# author didn't specify so we mirror 0.9 like the SDXL catalog uses.
+# Per-LoRA scales follow each Civitai page's recommendation when given,
+# else fall back to 0.8 (drawing 110244's example) or 0.9 (the SDXL
+# catalog default).
 LORAS: list[tuple[str, str, float]] = [
-    ("sd15_drawing_nty",      "sd15_drawing_nty.safetensors",      0.8),
-    ("sd15_inked_portrait",   "sd15_inked_portrait.safetensors",   0.9),
+    ("sd15_drawing_nty",         "sd15_drawing_nty.safetensors",         0.8),
+    ("sd15_inked_portrait",      "sd15_inked_portrait.safetensors",      0.9),
+    ("sd15_paintstyle",          "sd15_paintstyle.safetensors",          0.8),
+    ("sd15_oil_painting_stick",  "sd15_oil_painting_stick.safetensors",  0.8),
+    ("sd15_dwmpainting",         "sd15_dwmpainting.safetensors",         0.8),
+    ("sd15_oil_painting_feel",   "sd15_oil_painting_feel.safetensors",   0.8),  # author: <1.0
+    ("sd15_ms_paint",            "sd15_ms_paint.safetensors",            0.9),
+    ("sd15_oil_painting_style",  "sd15_oil_painting_style.safetensors",  0.8),
+    ("sd15_caravaggio",          "sd15_caravaggio.safetensors",          0.6),  # author: 0.4-0.7
+    ("sd15_classic_oil_painting","sd15_classic_oil_painting.safetensors", 0.8),
+    ("sd15_light_oil_painting",  "sd15_light_oil_painting.safetensors",  0.8),
+    ("sd15_disco_brush",         "sd15_disco_brush.safetensors",         1.0),  # author: 1.0-2.0, conservative
+    ("sd15_disco_rostov",        "sd15_disco_rostov.safetensors",        0.9),  # author: 0.6-0.9 emphasize
 ]
 
 DIFFUSION_SEED = 42
@@ -181,18 +193,19 @@ def write_index(
     failed: list[tuple[str, str, str]],
 ) -> None:
     md_lines: list[str] = [
-        "# SD 1.5 LoRA compare — Drawing 110244 + Inked Portrait 947591",
+        f"# SD 1.5 LoRA compare — {len(loras)} candidates × {len(events)} events",
         "",
         f"Same 5 events as `lora_catalog.md`. Base: `{BASE_MODEL}`",
         f"(SD 1.5 vanilla, not Turbo — these LoRAs are SD 1.5 only).",
         "",
         f"Sampler: DPM++ 2M Karras, **{STEPS} steps**, CFG **{CFG}**, ",
         f"{WIDTH}x{HEIGHT}, fixed seed **{DIFFUSION_SEED}**, "
-        f"`prompt_seed={PROMPT_SEED}` so each LoRA sees the same data prompt.",
+        f"`prompt_seed={PROMPT_SEED}` so every cell sees the same data prompt for a given event.",
         "",
-        "Drawing 110244 is fused at scale 0.8 (mirrors the Civitai example",
-        "image the user picked); Inked Portrait 947591 at 0.9 (no author",
-        "guidance, matching the SDXL catalog's default).",
+        "Per-LoRA fuse scale follows each Civitai page's recommendation when",
+        "the author specified one (e.g. `caravaggio` 0.6 for the 0.4-0.7",
+        "range, `disco_brush` 1.0 conservative end of 1.0-2.0); otherwise",
+        "0.8 (drawing 110244's example image weight) or 0.9 (catalog default).",
         "",
     ]
 

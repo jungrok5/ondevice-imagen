@@ -66,6 +66,20 @@ LORA_TRIGGERS: dict[str, str] = {
     # of truth.
     "sd15_drawing_nty":       "(style by NTY, drawing:1.2)",               # 110244
     "sd15_inked_portrait":    "Illustration, portait style, black and white, line, ink, sketch",  # 947591
+    # SD 1.5 oil-painting / MS Paint / Disco Elysium candidates (2026-05-09).
+    # Triggers from each LoRA's Civitai page; "" means trainedWords empty
+    # (LoRA effect comes from fuse alone with no prompt token).
+    "sd15_paintstyle":             "",                                # 194852 (no trigger)
+    "sd15_oil_painting_stick":     "",                                # 107165 (no trigger; descriptors via prompt)
+    "sd15_dwmpainting":            "",                                # 102622 (no trigger)
+    "sd15_oil_painting_feel":      "oil painting, classic painting",  # 144169
+    "sd15_ms_paint":               "ms paint style",                  # 148397
+    "sd15_oil_painting_style":     "oil painting",                    # 320822
+    "sd15_caravaggio":             "",                                # 119790 (no trigger; weight 0.4-0.7)
+    "sd15_classic_oil_painting":   "masterpiece",                     # 155971
+    "sd15_light_oil_painting":     "",                                # 180111 (no trigger)
+    "sd15_disco_brush":            "ZaUm, texture",                   # 258925
+    "sd15_disco_rostov":           "(A_Rostov_Style:0.9)",            # 151635 (author-recommended emphasize)
     # legacy no-LoRA aliases kept for older scripts
     "lah_cute_social":        "cute doodle,",
     "pixel_art_xl":           "pixel art,",

@@ -513,6 +513,25 @@ prompt-side and post-filter NSFW gating regardless of LoRA license.
 Driver: [scripts/sd15_lora_compare.py](scripts/sd15_lora_compare.py).
 Full grid + per-cell prompts: [samples/sd15_compare_grid.md](samples/sd15_compare_grid.md).
 
+Grid expanded later (2026-05-10) to **13 candidates × 5 events = 65
+cells**. The 11 new SD 1.5 LoRAs span four lanes — oil painting
+(`paintstyle`, `oil_painting_stick`, `dwmpainting`, `oil_painting_feel`,
+`oil_painting_style`, `caravaggio`, `classic_oil_painting`,
+`light_oil_painting`), Disco Elysium game art (`disco_brush`,
+`disco_rostov`), and MS Paint (`ms_paint`). All pass the
+commercial-use license gate; nsfwLevel and credit-obligation flags
+vary per LoRA (see
+[memory/reference_lora_licenses.md](https://github.com/) entries
+or the linked Civitai pages).
+Per-LoRA fuse scale follows each author's recommendation
+(e.g. `caravaggio` 0.6 for its 0.4-0.7 range, `disco_brush` 1.0 at
+the low end of 1.0-2.0). Comparison renders are at
+[samples/sd15_compare_grid.md](samples/sd15_compare_grid.md);
+visually they split into three buckets — fine-art oil painting
+(brushy texture, deep shadows), graphite/ink line drawings, and
+game-art / pixel-art looks — which is the intended axis for the
+"final default LoRA" decision before the Phase 2 bake step.
+
 ## Phase 2 — on-device SD 1.5 inference (in progress)
 
 After Phase 1 validated the workflow on Note 10+ with a fake 30 s
