@@ -139,7 +139,17 @@ func _build_ui() -> void:
 	lora_picker.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	for i in LORA_PRESETS.size():
 		lora_picker.add_item(String(LORA_PRESETS[i][0]), i)
-	lora_picker.select(1)  # default to worstimever — most-tested style
+	# Default to the SD 1.5 NTY LoRA — that's the one actually baked
+	# into the on-device ONNX bundle (sd15_drawing_nty_scale0.8). The
+	# other entries are PC-side aesthetic comparisons, not selectable
+	# at runtime; presenting a non-matching SDXL trigger as default
+	# wastes a run.
+	var nty_idx := -1
+	for i in LORA_PRESETS.size():
+		if String(LORA_PRESETS[i][1]) == "sd15_drawing_nty":
+			nty_idx = i
+			break
+	lora_picker.select(nty_idx if nty_idx >= 0 else 0)
 	lora_row.add_child(lora_picker)
 
 	# Build prompt button
