@@ -60,7 +60,7 @@ def download(target: Path, version_id: int, model_id: int) -> tuple[bool, str]:
     if TOKEN:
         url += f"?token={TOKEN}"
 
-    req = urllib.request.Request(url, headers={"User-Agent": "local-ai-rnd/1.0"})
+    req = urllib.request.Request(url, headers={"User-Agent": "ondevice-imagen/1.0"})
     try:
         with urllib.request.urlopen(req, timeout=60) as resp:
             ctype = resp.headers.get("Content-Type", "")

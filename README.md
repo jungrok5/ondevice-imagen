@@ -1,4 +1,9 @@
-# local-ai-rnd
+# ondevice-imagen
+
+> Part of the **AI research notebook** series — this chapter is on-device
+> Stable Diffusion (1.5 / Turbo / XL) on phones, from PC ONNX export to
+> a working Android APK with native scheduling. Future chapters will
+> cover other on-device ML domains under the same notebook.
 
 > **Testing rule (applies to every script from now on):** when a LoRA
 > is loaded for testing, its card-specified trigger phrase **must**
@@ -1522,7 +1527,7 @@ deployment, app size, and what is *verified vs. assumed* live in
 ## Repository layout
 
 ```
-local-ai-rnd/
+ondevice-imagen/
   data/sample_week.json             synthetic 7-day record (no real user data)
   src/diary.py                      load + summarize the synthetic week
   src/prompt_builder.py             WeekSummary -> SD prompt

@@ -10,7 +10,7 @@ $client = Join-Path $repo "client"
 $pluginDir = Join-Path $repo "android-plugin"
 $addons = Join-Path $client "addons"
 $buildDir = Join-Path $repo "build"
-$outputApk = Join-Path $buildDir "local-ai-rnd-debug.apk"
+$outputApk = Join-Path $buildDir "ondevice-imagen-debug.apk"
 
 # Resolve toolchain paths (zip-installed JDK + Android SDK).
 $env:JAVA_HOME = "C:\dev\jdk17\jdk-17.0.13+11"

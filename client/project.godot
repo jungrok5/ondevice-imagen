@@ -10,7 +10,7 @@ config_version=5
 
 [application]
 
-config/name="local-ai-rnd"
+config/name="ondevice-imagen"
 config/description="Press a button — get a doodle of this moment."
 run/main_scene="res://scenes/Main.tscn"
 config/features=PackedStringArray("4.6", "Mobile")

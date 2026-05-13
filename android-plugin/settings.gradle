@@ -1,4 +1,4 @@
-// Settings for the local-ai-rnd Android plugin.
+// Settings for the ondevice-imagen Android plugin.
 // Same gradle invocation as WaterBloom: `gradlew assembleRelease` produces
 // android-plugin/draw_moment_plugin/build/outputs/aar/draw_moment_plugin-release.aar
 // which we then drop into client/android/plugins/ for Godot to pick up.

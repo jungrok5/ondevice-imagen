@@ -24,7 +24,7 @@ const _NOMINATIM  := "https://nominatim.openstreetmap.org/reverse?format=jsonv2&
 # Nominatim usage policy requires a User-Agent identifying the app +
 # a contact URL. Repo URL is the stable contact while the app name and
 # domain are TBD.
-const _UA_HEADER := "User-Agent: local-ai-rnd/0.1 (+https://github.com/jungrok5/localairnd)"
+const _UA_HEADER := "User-Agent: ondevice-imagen/0.1 (+https://github.com/jungrok5/ondevice-imagen)"
 
 signal context_changed(ctx: Dictionary)
 
