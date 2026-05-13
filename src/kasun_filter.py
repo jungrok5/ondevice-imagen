@@ -5,21 +5,14 @@ Pre-filter steps that meaningfully improve both modes:
   - MedianFilter to flatten gradients into solid regions
   - Saturation boost so quantize picks vivid colors instead of muddy grey
 
-This module's parameters were tuned by comparing the output to the
-heraldcorp Sam Altman reference doodle and the OpenAI-logo Instagram
-post; both are saved under samples/reference/.
-
-After looking at real reference outputs (the Sam Altman heraldcorp doodle
-and the OpenAI-logo-only Instagram doodle) it's clear there are TWO
-distinct sub-styles inside what people call "낙서풍":
+Looking at real outputs of the trend, there are TWO distinct sub-styles
+inside what people call "낙서풍":
 
   - **단색선 (line-only)**: black lines on white paper, no colour fill.
-    Closest to the OpenAI-logo doodle on @openai's profile grid.
     Achieved by edge detection + threshold + dilation.
 
   - **컬러 낙서풍 (color flat-fill)**: 4-6 flat colours bounded by thick
-    black outlines, like a kid filling in a colouring book. Closest to
-    the Sam Altman heraldcorp doodle.
+    black outlines, like a kid filling in a colouring book.
     Achieved by posterise + edge detection on the posterised image,
     composite back together.
 
@@ -51,7 +44,7 @@ def kasun_line(
     smooth: int = 5,
     output_size: int = 1024,
 ) -> Image.Image:
-    """Edge-only black-on-white doodle (the OpenAI-logo aesthetic).
+    """Edge-only black-on-white doodle (the line-only sub-style).
 
     grid:           edge length of the small intermediate image.
                     Smaller = simpler, more pathetic linework.
@@ -59,8 +52,8 @@ def kasun_line(
                     edges *stronger* than this survive. Higher = fewer
                     cleaner lines.
     dilate:         number of MinFilter passes to thicken black lines.
-                    0 = thin marker, 1-2 = thicker brush. The
-                    OpenAI-logo aesthetic is ~0.
+                    0 = thin marker, 1-2 = thicker brush. The pen-line
+                    sub-style sits at ~0.
     smooth:         MedianFilter kernel size before edge detection.
                     Higher kills SD high-frequency texture so only
                     region-boundary lines survive.
@@ -98,8 +91,8 @@ def kasun_color(
     bg_to_white: bool = True,
     bg_dark_threshold: int = 220,
 ) -> Image.Image:
-    """Flat colour fill + thin black outline doodle (the Sam Altman
-    heraldcorp aesthetic).
+    """Flat colour fill + thin black outline doodle (the colour
+    flat-fill sub-style).
 
     grid:           edge length of the small intermediate image.
     colors:         palette size after median-cut. 5-6 is the sweet

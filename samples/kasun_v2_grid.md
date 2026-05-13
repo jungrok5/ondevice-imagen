@@ -10,4 +10,3 @@ pixel-op post-process, no extra ML model.
 | ![](viral_friends_mom_portrait.png) | ![](v2_line_viral_friends_mom_portrait.png) | ![](v2_color_viral_friends_mom_portrait.png) |
 | ![](quality_realistic.png) | ![](v2_line_quality_realistic.png) | ![](v2_color_quality_realistic.png) |
 | ![](drill_mom_korean_living_room.png) | ![](v2_line_drill_mom_korean_living_room.png) | ![](v2_color_drill_mom_korean_living_room.png) |
-| ![](reference/ref_heraldcorp_main.png) | ![](v2_line_ref_heraldcorp_main.png) | ![](v2_color_ref_heraldcorp_main.png) |

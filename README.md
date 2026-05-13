@@ -1166,16 +1166,12 @@ without paying for SD inference — useful for tuning the rotation logic.
 
 ### Closing the gap to the GPT-4o '하찮은 프롬프트' look
 
-After downloading the actual viral references (the Sam Altman
-heraldcorp doodle and the OpenAI-logo doodle from `@openai`'s
-Instagram profile, both saved under `samples/reference/`), it became
-clear the trend isn't one aesthetic but two:
+Looking at real outputs of the trend, it's clear it isn't one
+aesthetic but two:
 
 - **단색선 (line-only)**: pen lines on white paper, no fill at all.
-  Closest match to the OpenAI-logo doodle.
 - **컬러 낙서풍 (colour flat-fill)**: 5-6 flat colours bounded by thin
-  black outlines, white background, visible pixels. Closest match to
-  the Sam Altman heraldcorp doodle.
+  black outlines, white background, visible pixels.
 
 [src/kasun_filter.py](src/kasun_filter.py) splits accordingly into
 `kasun_line()` and `kasun_color()`. Both stack the same pre-process —
@@ -1192,18 +1188,11 @@ saturation boost so the palette picks vivid hues — and then diverge:
 | 6. compose | threshold → black on white | composite black edges over fill |
 | 7. upscale | 1024×1024 NEAREST | 1024×1024 NEAREST |
 
-**Round-trip sanity check** — feed the actual heraldcorp Sam Altman
-reference back through both filters:
-
-| reference | → kasun_line | → kasun_color |
-|---|---|---|
-| ![](samples/reference/ref_heraldcorp_main.png) | ![](samples/v2_line_ref_heraldcorp_main.png) | ![](samples/v2_color_ref_heraldcorp_main.png) |
-
-`kasun_color` reproduces the bright-blue-suit + tan-skin + brown-hair
-+ white-BG palette of the original; `kasun_line` reduces the same
-input to a clean pen sketch that still reads as Sam Altman. Both
-match the trend's actual visual register, not the 1-bit Game Boy
-aesthetic the v1 filter was producing.
+`kasun_color` reproduces a bright-suit + tan-skin + brown-hair +
+white-BG palette typical of the trend; `kasun_line` reduces the same
+input to a clean pen sketch. Both match the trend's actual visual
+register, not the 1-bit Game Boy aesthetic the v1 filter was
+producing.
 
 **Applied to our SD-Turbo output**:
 

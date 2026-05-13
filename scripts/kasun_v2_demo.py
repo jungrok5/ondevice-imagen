@@ -1,9 +1,9 @@
-"""Apply the v2 kasun filters (line + color) to existing samples and
-to the actual reference doodles, then save a side-by-side gallery.
+"""Apply the v2 kasun filters (line + color) to existing samples,
+then save a side-by-side gallery.
 
 Two filters:
-  - kasun_line  : black single-line doodle on white (OpenAI-logo style)
-  - kasun_color : 4-6 flat colours + thick black outlines (Sam Altman style)
+  - kasun_line  : black single-line doodle on white
+  - kasun_color : 4-6 flat colours + thick black outlines
 """
 from __future__ import annotations
 
@@ -52,19 +52,6 @@ def main() -> None:
 
         rows.append({"src": src_name, "line": line_path.name, "color": color_path.name})
         print(f"[v2] {src_name} -> {line_path.name}, {color_path.name}")
-
-    # Reference doodles also passed through both filters for sanity check —
-    # they should be near-identity (the references already are doodles).
-    if (REFERENCE / "ref_heraldcorp_main.png").exists():
-        for ref_name in ["ref_heraldcorp_main.png"]:
-            stem = Path(ref_name).stem
-            img = Image.open(REFERENCE / ref_name)
-            line_path = SAMPLES / f"v2_line_{stem}.png"
-            color_path = SAMPLES / f"v2_color_{stem}.png"
-            kasun_line(img).save(line_path)
-            kasun_color(img).save(color_path)
-            rows.append({"src": f"reference/{ref_name}", "line": line_path.name, "color": color_path.name})
-            print(f"[v2] {ref_name} -> {line_path.name}, {color_path.name}")
 
     # Index page
     lines = [

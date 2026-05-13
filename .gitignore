@@ -83,6 +83,7 @@ hf_cache/
 .vscode/
 .claude/
 Thumbs.db
-samples/reference/heraldcorp.html
-samples/reference/dcbest.html
-samples/reference/ref_wikitree.webp
+
+# Stray exploratory logs in samples/. Specific log filenames change
+# per experiment session; this catches the next round too.
+samples/*.log
