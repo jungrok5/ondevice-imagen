@@ -1597,3 +1597,10 @@ quoted above.
 | `LAR_GUIDANCE`  | `0.0`                        | SD-Turbo is trained with guidance off |
 | `LAR_STRENGTH`  | `0.85`                       | img2img: lower = closer to base       |
 | `LAR_DEVICE`    | auto (cuda > directml > cpu) | Force `cpu` or `directml`             |
+
+---
+
+## Author
+
+**Jeongrok Oh** (오정록) — Technical Director · MMO Server Architect
+[Résumé](https://jungrok5.github.io/resume/en/) · [GitHub](https://github.com/jungrok5) · [LinkedIn](https://www.linkedin.com/in/jungrok5)
